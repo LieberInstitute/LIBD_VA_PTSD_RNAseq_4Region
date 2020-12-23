@@ -1,0 +1,329 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(jaffelab)
+Loading required package: rafalib
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(WGCNA)
+Loading required package: dynamicTreeCut
+Loading required package: fastcluster
+
+Attaching package: ‘fastcluster’
+
+The following object is masked from ‘package:stats’:
+
+    hclust
+
+
+
+Attaching package: ‘WGCNA’
+
+The following object is masked from ‘package:IRanges’:
+
+    cor
+
+The following object is masked from ‘package:S4Vectors’:
+
+    cor
+
+The following object is masked from ‘package:stats’:
+
+    cor
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> library(lmerTest)
+Loading required package: lme4
+Loading required package: Matrix
+
+Attaching package: ‘Matrix’
+
+The following object is masked from ‘package:S4Vectors’:
+
+    expand
+
+
+Attaching package: ‘lme4’
+
+The following object is masked from ‘package:nlme’:
+
+    lmList
+
+
+Attaching package: ‘lmerTest’
+
+The following object is masked from ‘package:lme4’:
+
+    lmer
+
+The following object is masked from ‘package:stats’:
+
+    step
+
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> #load objects
+> load("rdas/WGCNA/constructed_network_signed_bicor_Cortex_onlyPTSD.rda",verbose=TRUE)
+Loading objects:
+  net
+  fNames
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata',verbose=TRUE)
+Loading objects:
+  rse_gene
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> 
+> ###########
+> # filter ##
+> gIndex = rowMeans(getRPKM(rse_gene, "Length")) > 0.2
+> rse_gene <- rse_gene[gIndex , ]
+> 
+> rse_gene$CatRegion <- ifelse(rse_gene$Region == "BasoAmyg" | rse_gene$Region == "MedialAmyg", "Amyg","Cortex")
+> gkeepIndex = which(rse_gene$CatRegion == "Cortex")
+> rse_gene <- rse_gene[, gkeepIndex]
+> 
+> ##########
+> ## model #
+> ##########
+> load('rdas/PTSD_qsvs_Regionintxn_onlyPTSD_Cortex.Rdata',verbose=TRUE)
+Loading objects:
+  qSV_mat
+  modQsva
+  mod
+> 
+> ##ensure intercept, region, interaction, group, agedeath, and sex are up first for cleaning
+> colnames(modQsva)
+ [1] "Int"                  "onlyPTSD"             "RegionDLPFC"         
+ [4] "AgeDeath"             "SexM"                 "mitoRate"            
+ [7] "rRNA_rate"            "totalAssignedGene"    "RIN"                 
+[10] "overallMapRate"       "ERCCsumLogErr"        "snpPC1"              
+[13] "snpPC2"               "snpPC3"               "snpPC8"              
+[16] "snpPC9"               "snpPC10"              "onlyPTSD.RegionDLPFC"
+[19] "PC1"                  "PC2"                  "PC3"                 
+[22] "PC4"                  "PC5"                  "PC6"                 
+[25] "PC7"                  "PC8"                  "PC9"                 
+[28] "PC10"                 "PC11"                 "PC12"                
+[31] "PC13"                 "PC14"                 "PC15"                
+[34] "PC16"                 "PC17"                 "PC18"                
+[37] "PC19"                 "PC20"                
+> dim(modQsva)
+[1] 641  38
+> modQsva = modQsva[,c(1:5,18,6:17,19:38)]
+> head(modQsva)
+       Int onlyPTSD RegionDLPFC AgeDeath SexM onlyPTSD.RegionDLPFC   mitoRate
+R16315   1        1           0    41.71    1                    0 0.02103480
+R16015   1        1           1    41.71    1                    1 0.02652086
+R15787   1        1           0    40.53    1                    0 0.03672185
+R16016   1        1           1    40.53    1                    1 0.02868744
+R15788   1        1           0    48.21    1                    0 0.02750204
+R16017   1        1           1    48.21    1                    1 0.02751086
+          rRNA_rate totalAssignedGene RIN overallMapRate ERCCsumLogErr
+R16315 9.949357e-05         0.3606736 6.8         0.8582     -27.28821
+R16015 8.892012e-05         0.4225928 7.4         0.8688     -27.91039
+R15787 1.980323e-04         0.3763477 7.3         0.7252     -14.90068
+R16016 1.087026e-04         0.4822099 7.8         0.8584     -17.84485
+R15788 9.304784e-05         0.4845666 9.2         0.8758     -25.98246
+R16017 8.068393e-05         0.5299294 8.0         0.8945     -12.95868
+           snpPC1      snpPC2     snpPC3       snpPC8     snpPC9      snpPC10
+R16315  0.1276800 -0.00734816 -0.0178312 -0.000202292 0.00124942  0.000412613
+R16015  0.1276800 -0.00734816 -0.0178312 -0.000202292 0.00124942  0.000412613
+R15787 -0.0240917 -0.00641316 -0.0228262  0.008276590 0.00246881 -0.002414600
+R16016 -0.0240917 -0.00641316 -0.0228262  0.008276590 0.00246881 -0.002414600
+R15788 -0.0224736 -0.00437300 -0.0222278  0.004635840 0.00465256  0.005004020
+R16017 -0.0224736 -0.00437300 -0.0222278  0.004635840 0.00465256  0.005004020
+              PC1       PC2        PC3      PC4         PC5       PC6
+R16315 -22.090257  5.831369  1.7666737 4.157629 -1.69903456 0.6941695
+R16015   2.299972  3.733059  2.6697834 3.075566 -2.35300148 2.6269997
+R15787 -25.158668 -4.582367  0.8190382 1.168891 -3.31667118 2.4259283
+R16016  10.731209  6.257222  1.2954151 2.708373  0.10382876 2.6320905
+R15788  16.955506  5.562860  0.6767875 3.455998 -0.07333689 0.4149824
+R16017  22.977015  3.557654 -1.7984386 1.908755 -0.57444443 2.4668646
+              PC7        PC8        PC9        PC10        PC11       PC12
+R16315 -1.4493007 -1.7396449  0.6173959  0.60558981  0.15738691 -2.2690117
+R16015 -2.2199613 -0.5259872  0.2443974 -0.24136310 -0.03425117 -0.9437543
+R15787 -0.5388203 -2.0496982  1.6452308  0.74379388  0.52893253 -2.0292946
+R16016 -1.0968661 -0.9712982  0.1765191  1.18982020  0.24197373 -0.7735130
+R15788 -0.5692429 -0.8357448  0.9566516  0.10347009 -0.42287005 -0.2474961
+R16017 -2.5747672 -0.6286454 -1.2099302  0.05953875 -0.69394103 -0.8683089
+             PC13       PC14         PC15        PC16       PC17       PC18
+R16315 -0.6142968 0.73688120 -0.993995860 -0.01042288 -0.3298272  0.3904171
+R16015  0.6398832 0.63268395 -0.093176812  0.13856621  0.1450080 -0.0178818
+R15787 -1.4943187 1.88346321 -0.983855040 -0.98298051  0.6205836  0.8570823
+R16016 -0.3734444 0.47641203  0.103880638 -0.62522638  0.2245213  0.9914600
+R15788 -1.6520706 0.83682507 -1.445224496 -1.41639851 -1.0502587  0.2553757
+R16017 -0.6049097 0.02667423  0.006762764 -1.00179572 -1.0648941  0.2540140
+            PC19       PC20
+R16315 0.9049070 -0.4734105
+R16015 1.5593775 -0.6847814
+R15787 1.3075568 -1.3535078
+R16016 1.7357657 -0.8812779
+R15788 0.3939036 -0.7693582
+R16017 0.5078421 -0.4774115
+> 
+> ### Dx association ###
+> brnums<-rse_gene$BrNum
+> 
+> coefAdj = t(apply(net$MEs, 2, function(y)
++ 	summary(lmerTest::lmer(y~ modQsva[ ,1:6] - 1 + (1|brnums)))$coef[2,]))
+> 
+> save(coefAdj, file="rdas/WGCNA/MEvsDx_Cortex_onlyPTSD.rda")
+> 
+> coefAdj[coefAdj[,5] < 0.1,]
+        Estimate  Std. Error       df   t value    Pr(>|t|)
+ME1 -0.011151043 0.004459459 624.9307 -2.500537 0.012655503
+ME3 -0.011997973 0.004537659 487.6691 -2.644089 0.008455057
+ME4 -0.008870114 0.004777654 516.7594 -1.856584 0.063939317
+ME7 -0.008209810 0.004629269 529.0448 -1.773457 0.076728198
+> 
+> #GO using clusterProfiler
+> library(clusterProfiler)
+Registered S3 method overwritten by 'enrichplot':
+  method               from
+  fortify.enrichResult DOSE
+clusterProfiler v3.14.0  For help: https://guangchuangyu.github.io/software/clusterProfiler
+
+If you use clusterProfiler in published research, please cite:
+Guangchuang Yu, Li-Gen Wang, Yanyan Han, Qing-Yu He. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS: A Journal of Integrative Biology. 2012, 16(5):284-287.
+
+Attaching package: ‘clusterProfiler’
+
+The following object is masked from ‘package:DelayedArray’:
+
+    simplify
+
+> library(org.Hs.eg.db)
+Loading required package: AnnotationDbi
+
+> 				  
+> #make matrix
+> # split genes into modules
+> moduleGeneList_adj = split(rowData(rse_gene)$EntrezID, net$colors)
+> moduleGeneList_adj = lapply(moduleGeneList_adj, function(x) x[!is.na(x)])
+> 
+> #universe of expressed genes
+> universe <- as.character(rowData(rse_gene)$EntrezID[!is.na(rowData(rse_gene)$EntrezID)])
+> 
+> ## run GO 
+> go_modules_cortex <- compareCluster(moduleGeneList_adj, fun = "enrichGO",
++                 universe = universe, OrgDb = org.Hs.eg.db,
++                 ont = "ALL", pAdjustMethod = "BH",
++                 pvalueCutoff  = 1, qvalueCutoff  = 1, readable= TRUE)
+> 
+> save(go_modules_cortex, file="rdas/WGCNA/wgcna_Cortex_GO_clusterProfiler_onlyPTSD.rda")
+> 
+> ## Reproducibility information
+> print('Reproducibility information:')
+[1] "Reproducibility information:"
+> Sys.time()
+[1] "2020-02-16 15:39:41 EST"
+> proc.time()
+    user   system  elapsed 
+1983.760   18.825 2005.634 
+> options(width = 120)
+> session_info()
+Error in session_info() : could not find function "session_info"
+Execution halted

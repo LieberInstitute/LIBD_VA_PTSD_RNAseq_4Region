@@ -1,0 +1,243 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(jaffelab)
+Loading required package: rafalib
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(WGCNA)
+Loading required package: dynamicTreeCut
+Loading required package: fastcluster
+
+Attaching package: ‘fastcluster’
+
+The following object is masked from ‘package:stats’:
+
+    hclust
+
+
+
+Attaching package: ‘WGCNA’
+
+The following object is masked from ‘package:IRanges’:
+
+    cor
+
+The following object is masked from ‘package:S4Vectors’:
+
+    cor
+
+The following object is masked from ‘package:stats’:
+
+    cor
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> #load network
+> load("rdas/WGCNA/constructed_network_signed_bicor_DLPFC_PTSD.rda", verbose = TRUE)
+Loading objects:
+  net
+  fNames
+> #load rse objects
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> 
+> ###########
+> # filter ##
+> gIndex = rowMeans(getRPKM(rse_gene, "Length")) > 0.2
+> rse_gene <- rse_gene[gIndex , ]
+> 
+> ##########
+> ## model #
+> ##########
+> 
+> load("rdas/PTSD_qsvs.Rdata",verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSVs
+  mod
+  modQsva
+> 
+> ##ensure intercept, group, agedeath, and sex are up first for cleaning
+> colnames(modQsva)
+ [1] "(Intercept)"       "GroupMDD"          "GroupPTSD"        
+ [4] "AgeDeath"          "SexM"              "RegiondACC"       
+ [7] "RegionDLPFC"       "RegionMedialAmyg"  "mitoRate"         
+[10] "rRNA_rate"         "totalAssignedGene" "RIN"              
+[13] "overallMapRate"    "ERCCsumLogErr"     "snpPC1"           
+[16] "snpPC2"            "snpPC3"            "snpPC8"           
+[19] "snpPC9"            "snpPC10"           "PC1"              
+[22] "PC2"               "PC3"               "PC4"              
+[25] "PC5"               "PC6"               "PC7"              
+[28] "PC8"               "PC9"               "PC10"             
+[31] "PC11"              "PC12"              "PC13"             
+[34] "PC14"              "PC15"              "PC16"             
+[37] "PC17"              "PC18"              "PC19"             
+> modQsva = modQsva[,c(1,3,4,5,2,6:39)]
+> 
+> #filter for DLPFC
+> #gene
+> keepIndex = which(rse_gene$Region == "DLPFC")
+> rse_gene <- rse_gene[, keepIndex]
+> 
+> #Get rid of region columns
+> modQsva <- modQsva[keepIndex,!grepl("Region", colnames(modQsva))]
+> colnames(modQsva)[1] = "Int"
+> 
+> ### Dx association ###
+> 
+> coefAdj = t(apply(net$MEs, 2, function(y)
++   summary(lm(y~ modQsva[ ,1:4]))$coef[2,]))
+> 
+> save(coefAdj, file="rdas/WGCNA/MEvsDx_DLPFC_PTSD.rda")
+> 
+> 
+> #GO using clusterProfiler
+> library(clusterProfiler)
+Registered S3 method overwritten by 'enrichplot':
+  method               from
+  fortify.enrichResult DOSE
+clusterProfiler v3.14.0  For help: https://guangchuangyu.github.io/software/clusterProfiler
+
+If you use clusterProfiler in published research, please cite:
+Guangchuang Yu, Li-Gen Wang, Yanyan Han, Qing-Yu He. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS: A Journal of Integrative Biology. 2012, 16(5):284-287.
+
+Attaching package: ‘clusterProfiler’
+
+The following object is masked from ‘package:DelayedArray’:
+
+    simplify
+
+> library(org.Hs.eg.db)
+Loading required package: AnnotationDbi
+
+> 				  
+> #make matrix
+> # split genes into modules
+> moduleGeneList_adj = split(rowData(rse_gene)$EntrezID, net$colors)
+> moduleGeneList_adj = lapply(moduleGeneList_adj, function(x) x[!is.na(x)])
+> 
+> #universe of expressed genes
+> universe <- as.character(rowData(rse_gene)$EntrezID[!is.na(rowData(rse_gene)$EntrezID)])
+> 
+> ## run GO 
+> go_modules_DLPFC <- compareCluster(moduleGeneList_adj, fun = "enrichGO",
++                 universe = universe, OrgDb = org.Hs.eg.db,
++                 ont = "ALL", pAdjustMethod = "BH",
++                 pvalueCutoff  = 1, qvalueCutoff  = 1,
++                                 readable= TRUE)
+> 
+> save(go_modules_DLPFC, file="rdas/DLPFC/wgcna_DLPFC_GO_clusterProfiler_PTSD.rda")
+> 
+> 
+> 							
+> 
+> proc.time()
+    user   system  elapsed 
+2199.305   17.371 2219.001 

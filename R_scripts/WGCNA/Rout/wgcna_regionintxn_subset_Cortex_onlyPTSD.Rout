@@ -1,0 +1,392 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> #WGCNA
+> #Cortex subset
+> #onlyPTSD
+> 
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(jaffelab)
+Loading required package: rafalib
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(WGCNA)
+Loading required package: dynamicTreeCut
+Loading required package: fastcluster
+
+Attaching package: ‘fastcluster’
+
+The following object is masked from ‘package:stats’:
+
+    hclust
+
+
+
+Attaching package: ‘WGCNA’
+
+The following object is masked from ‘package:IRanges’:
+
+    cor
+
+The following object is masked from ‘package:S4Vectors’:
+
+    cor
+
+The following object is masked from ‘package:stats’:
+
+    cor
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> ## multithread
+> allowWGCNAThreads(8)
+Allowing multi-threading with up to 8 threads.
+> 
+> #load rse objects
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> 
+> ###########
+> # filter ##
+> gIndex = rowMeans(getRPKM(rse_gene, "Length")) > 0.2
+> rse_gene <- rse_gene[gIndex , ]
+> 
+> rse_gene$CatRegion <- ifelse(rse_gene$Region == "BasoAmyg" | rse_gene$Region == "MedialAmyg", "Amyg","Cortex")
+> gkeepIndex = which(rse_gene$CatRegion == "Cortex")
+> rse_gene <- rse_gene[, gkeepIndex]
+> 
+> ##########
+> ## model #
+> ##########
+> load('rdas/PTSD_qsvs_Regionintxn_onlyPTSD_Cortex.Rdata',verbose=TRUE)
+Loading objects:
+  qSV_mat
+  modQsva
+  mod
+> 
+> ##ensure intercept, region, interaction, group, agedeath, and sex are up first for cleaning
+> colnames(modQsva)
+ [1] "Int"                  "onlyPTSD"             "RegionDLPFC"         
+ [4] "AgeDeath"             "SexM"                 "mitoRate"            
+ [7] "rRNA_rate"            "totalAssignedGene"    "RIN"                 
+[10] "overallMapRate"       "ERCCsumLogErr"        "snpPC1"              
+[13] "snpPC2"               "snpPC3"               "snpPC8"              
+[16] "snpPC9"               "snpPC10"              "onlyPTSD.RegionDLPFC"
+[19] "PC1"                  "PC2"                  "PC3"                 
+[22] "PC4"                  "PC5"                  "PC6"                 
+[25] "PC7"                  "PC8"                  "PC9"                 
+[28] "PC10"                 "PC11"                 "PC12"                
+[31] "PC13"                 "PC14"                 "PC15"                
+[34] "PC16"                 "PC17"                 "PC18"                
+[37] "PC19"                 "PC20"                
+> dim(modQsva)
+[1] 641  38
+> modQsva = modQsva[,c(1:5,18,6:17,19:38)]
+> head(modQsva)
+       Int onlyPTSD RegionDLPFC AgeDeath SexM onlyPTSD.RegionDLPFC   mitoRate
+R16315   1        1           0    41.71    1                    0 0.02103480
+R16015   1        1           1    41.71    1                    1 0.02652086
+R15787   1        1           0    40.53    1                    0 0.03672185
+R16016   1        1           1    40.53    1                    1 0.02868744
+R15788   1        1           0    48.21    1                    0 0.02750204
+R16017   1        1           1    48.21    1                    1 0.02751086
+          rRNA_rate totalAssignedGene RIN overallMapRate ERCCsumLogErr
+R16315 9.949357e-05         0.3606736 6.8         0.8582     -27.28821
+R16015 8.892012e-05         0.4225928 7.4         0.8688     -27.91039
+R15787 1.980323e-04         0.3763477 7.3         0.7252     -14.90068
+R16016 1.087026e-04         0.4822099 7.8         0.8584     -17.84485
+R15788 9.304784e-05         0.4845666 9.2         0.8758     -25.98246
+R16017 8.068393e-05         0.5299294 8.0         0.8945     -12.95868
+           snpPC1      snpPC2     snpPC3       snpPC8     snpPC9      snpPC10
+R16315  0.1276800 -0.00734816 -0.0178312 -0.000202292 0.00124942  0.000412613
+R16015  0.1276800 -0.00734816 -0.0178312 -0.000202292 0.00124942  0.000412613
+R15787 -0.0240917 -0.00641316 -0.0228262  0.008276590 0.00246881 -0.002414600
+R16016 -0.0240917 -0.00641316 -0.0228262  0.008276590 0.00246881 -0.002414600
+R15788 -0.0224736 -0.00437300 -0.0222278  0.004635840 0.00465256  0.005004020
+R16017 -0.0224736 -0.00437300 -0.0222278  0.004635840 0.00465256  0.005004020
+              PC1       PC2        PC3      PC4         PC5       PC6
+R16315 -22.090257  5.831369  1.7666737 4.157629 -1.69903456 0.6941695
+R16015   2.299972  3.733059  2.6697834 3.075566 -2.35300148 2.6269997
+R15787 -25.158668 -4.582367  0.8190382 1.168891 -3.31667118 2.4259283
+R16016  10.731209  6.257222  1.2954151 2.708373  0.10382876 2.6320905
+R15788  16.955506  5.562860  0.6767875 3.455998 -0.07333689 0.4149824
+R16017  22.977015  3.557654 -1.7984386 1.908755 -0.57444443 2.4668646
+              PC7        PC8        PC9        PC10        PC11       PC12
+R16315 -1.4493007 -1.7396449  0.6173959  0.60558981  0.15738691 -2.2690117
+R16015 -2.2199613 -0.5259872  0.2443974 -0.24136310 -0.03425117 -0.9437543
+R15787 -0.5388203 -2.0496982  1.6452308  0.74379388  0.52893253 -2.0292946
+R16016 -1.0968661 -0.9712982  0.1765191  1.18982020  0.24197373 -0.7735130
+R15788 -0.5692429 -0.8357448  0.9566516  0.10347009 -0.42287005 -0.2474961
+R16017 -2.5747672 -0.6286454 -1.2099302  0.05953875 -0.69394103 -0.8683089
+             PC13       PC14         PC15        PC16       PC17       PC18
+R16315 -0.6142968 0.73688120 -0.993995860 -0.01042288 -0.3298272  0.3904171
+R16015  0.6398832 0.63268395 -0.093176812  0.13856621  0.1450080 -0.0178818
+R15787 -1.4943187 1.88346321 -0.983855040 -0.98298051  0.6205836  0.8570823
+R16016 -0.3734444 0.47641203  0.103880638 -0.62522638  0.2245213  0.9914600
+R15788 -1.6520706 0.83682507 -1.445224496 -1.41639851 -1.0502587  0.2553757
+R16017 -0.6049097 0.02667423  0.006762764 -1.00179572 -1.0648941  0.2540140
+            PC19       PC20
+R16315 0.9049070 -0.4734105
+R16015 1.5593775 -0.6847814
+R15787 1.3075568 -1.3535078
+R16016 1.7357657 -0.8812779
+R15788 0.3939036 -0.7693582
+R16017 0.5078421 -0.4774115
+> 
+> ## clean expression
+> geneExprs = log2(getRPKM(rse_gene,"Length")+1)
+> geneExprsClean = cleaningY(geneExprs, modQsva, P=6)
+> 
+> 
+> #########################
+> ## get power
+> sftthresh1 <- pickSoftThreshold(t(geneExprsClean), powerVector = c(seq(1, 10, by = 1), seq(12, 20, by = 2)), networkType = "signed", verbose = 5)
+pickSoftThreshold: will use block size 1719.
+ pickSoftThreshold: calculating connectivity for given powers...
+   ..working on genes 1 through 1719 of 26020
+   ..working on genes 1720 through 3438 of 26020
+   ..working on genes 3439 through 5157 of 26020
+   ..working on genes 5158 through 6876 of 26020
+   ..working on genes 6877 through 8595 of 26020
+   ..working on genes 8596 through 10314 of 26020
+   ..working on genes 10315 through 12033 of 26020
+   ..working on genes 12034 through 13752 of 26020
+   ..working on genes 13753 through 15471 of 26020
+   ..working on genes 15472 through 17190 of 26020
+   ..working on genes 17191 through 18909 of 26020
+   ..working on genes 18910 through 20628 of 26020
+   ..working on genes 20629 through 22347 of 26020
+   ..working on genes 22348 through 24066 of 26020
+   ..working on genes 24067 through 25785 of 26020
+   ..working on genes 25786 through 26020 of 26020
+   Power SFT.R.sq  slope truncated.R.sq  mean.k. median.k.  max.k.
+1      1 0.167000 30.600          0.993 1.33e+04  1.33e+04 14000.0
+2      2 0.069700  9.610          0.986 6.82e+03  6.79e+03  7670.0
+3      3 0.010800  2.410          0.967 3.53e+03  3.51e+03  4250.0
+4      4 0.000523 -0.382          0.931 1.84e+03  1.82e+03  2390.0
+5      5 0.028600 -1.930          0.862 9.67e+02  9.53e+02  1360.0
+6      6 0.254000 -4.040          0.855 5.13e+02  5.02e+02   820.0
+7      7 0.647000 -5.280          0.908 2.75e+02  2.66e+02   529.0
+8      8 0.862000 -5.330          0.939 1.49e+02  1.42e+02   359.0
+9      9 0.941000 -4.810          0.952 8.16e+01  7.65e+01   257.0
+10    10 0.964000 -4.200          0.958 4.53e+01  4.14e+01   193.0
+11    12 0.978000 -3.170          0.975 1.48e+01  1.24e+01   123.0
+12    14 0.985000 -2.470          0.989 5.25e+00  3.83e+00    88.8
+13    16 0.990000 -2.050          0.991 2.10e+00  1.22e+00    68.5
+14    18 0.989000 -1.780          0.986 9.68e-01  4.03e-01    55.5
+15    20 0.989000 -1.610          0.988 5.14e-01  1.37e-01    46.2
+> cat(sftthresh1$powerEstimate)
+8> save(sftthresh1, file = "rdas/WGCNA/power_object_Cortex_onlyPTSD.rda")
+> 
+> ## run wgcna
+> net = blockwiseModules(t(geneExprsClean), power = sftthresh1$powerEstimate,
++                             networkType = "signed", minModuleSize = 30,corType="bicor",
++                             reassignThreshold = 0, mergeCutHeight = 0.25,
++                             numericLabels = TRUE, pamRespectsDendro = FALSE,
++                             saveTOMs = TRUE, verbose = 5, maxBlockSize = 30000,
++                             saveTOMFileBase = "rdas/WGCNA/wgcna_signed_TOM_Cortex_onlyPTSD")
+ Calculating module eigengenes block-wise from all genes
+   Flagging genes and samples with too many missing values...
+    ..step 1
+ ..Working on block 1 .
+    TOM calculation: adjacency..
+    ..will use 8 parallel threads.
+alpha: 1.000000
+     Fraction of slow calculations: 0.000000
+    ..connectivity..
+    ..matrix multiplication (system BLAS)..
+    ..normalization..
+    ..done.
+   ..saving TOM for block 1 into file rdas/WGCNA/wgcna_signed_TOM_Cortex_onlyPTSD-block.1.RData
+ ....clustering..
+ ....detecting modules..
+     ..done.
+ ....calculating module eigengenes..
+     moduleEigengenes : Working on ME for module 1
+     moduleEigengenes : Working on ME for module 2
+     moduleEigengenes : Working on ME for module 3
+     moduleEigengenes : Working on ME for module 4
+     moduleEigengenes : Working on ME for module 5
+     moduleEigengenes : Working on ME for module 6
+     moduleEigengenes : Working on ME for module 7
+     moduleEigengenes : Working on ME for module 8
+     moduleEigengenes : Working on ME for module 9
+     moduleEigengenes : Working on ME for module 10
+     moduleEigengenes : Working on ME for module 11
+     moduleEigengenes : Working on ME for module 12
+     moduleEigengenes : Working on ME for module 13
+     moduleEigengenes : Working on ME for module 14
+     moduleEigengenes : Working on ME for module 15
+     moduleEigengenes : Working on ME for module 16
+     moduleEigengenes : Working on ME for module 17
+     moduleEigengenes : Working on ME for module 18
+     moduleEigengenes : Working on ME for module 19
+     moduleEigengenes : Working on ME for module 20
+     moduleEigengenes : Working on ME for module 21
+     moduleEigengenes : Working on ME for module 22
+     moduleEigengenes : Working on ME for module 23
+     moduleEigengenes : Working on ME for module 24
+     moduleEigengenes : Working on ME for module 25
+     moduleEigengenes : Working on ME for module 26
+     moduleEigengenes : Working on ME for module 27
+     moduleEigengenes : Working on ME for module 28
+     moduleEigengenes : Working on ME for module 29
+     moduleEigengenes : Working on ME for module 30
+     moduleEigengenes : Working on ME for module 31
+     moduleEigengenes : Working on ME for module 32
+     moduleEigengenes : Working on ME for module 33
+     moduleEigengenes : Working on ME for module 34
+ ....checking kME in modules..
+     ..removing 4444 genes from module 1 because their KME is too low.
+     ..removing 3804 genes from module 2 because their KME is too low.
+     ..removing 1539 genes from module 3 because their KME is too low.
+     ..removing 880 genes from module 4 because their KME is too low.
+     ..removing 829 genes from module 5 because their KME is too low.
+     ..removing 688 genes from module 6 because their KME is too low.
+     ..removing 689 genes from module 7 because their KME is too low.
+     ..removing 584 genes from module 8 because their KME is too low.
+     ..removing 275 genes from module 9 because their KME is too low.
+     ..removing 370 genes from module 10 because their KME is too low.
+     ..removing 12 genes from module 11 because their KME is too low.
+     ..removing 257 genes from module 12 because their KME is too low.
+     ..removing 48 genes from module 13 because their KME is too low.
+     ..removing 1 genes from module 14 because their KME is too low.
+     ..removing 68 genes from module 15 because their KME is too low.
+     ..removing 44 genes from module 16 because their KME is too low.
+     ..removing 19 genes from module 17 because their KME is too low.
+     ..removing 10 genes from module 18 because their KME is too low.
+     ..removing 1 genes from module 20 because their KME is too low.
+     ..removing 3 genes from module 21 because their KME is too low.
+     ..removing 5 genes from module 22 because their KME is too low.
+     ..removing 1 genes from module 23 because their KME is too low.
+     ..removing 1 genes from module 26 because their KME is too low.
+     ..removing 3 genes from module 27 because their KME is too low.
+     ..removing 2 genes from module 31 because their KME is too low.
+     ..removing 7 genes from module 32 because their KME is too low.
+ ..merging modules that are too close..
+     mergeCloseModules: Merging modules whose distance is less than 0.25
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 35 module eigengenes in given set.
+alpha: 1.000000
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 31 module eigengenes in given set.
+alpha: 1.000000
+       Calculating new MEs...
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 31 module eigengenes in given set.
+alpha: 1.000000
+> fNames = rownames(geneExprs)
+> save(net, fNames, file = "rdas/WGCNA/constructed_network_signed_bicor_Cortex_onlyPTSD.rda")
+> 
+> 
+> proc.time()
+     user    system   elapsed 
+13244.176    67.159 13210.353 

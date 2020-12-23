@@ -1,0 +1,636 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> #######################################################################
+> #BasoCortex
+> #MDD
+> 
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(jaffelab)
+Loading required package: rafalib
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(WGCNA)
+Loading required package: dynamicTreeCut
+Loading required package: fastcluster
+
+Attaching package: ‘fastcluster’
+
+The following object is masked from ‘package:stats’:
+
+    hclust
+
+
+
+Attaching package: ‘WGCNA’
+
+The following object is masked from ‘package:IRanges’:
+
+    cor
+
+The following object is masked from ‘package:S4Vectors’:
+
+    cor
+
+The following object is masked from ‘package:stats’:
+
+    cor
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> ## multithread
+> allowWGCNAThreads(8)
+Allowing multi-threading with up to 8 threads.
+> 
+> #load rse objects
+> load('Data/rdas/General/RSEs/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ###########
+> # filter ##
+> gIndex = rowMeans(getRPKM(rse_gene, "Length")) > 0.2
+> rse_gene <- rse_gene[gIndex , ]
+> 
+> ##########
+> ## model #
+> ##########
+> load("Data/rdas/General/ModelMatrices/Main/AllRegions/PTSD_qsvs_Regionintxn.Rdata",verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSV_mat
+  modQsva
+  mod
+> 
+> ##ensure intercept, region, interaction, group, agedeath, and sex are up first for cleaning
+> colnames(modQsva)
+ [1] "Int"                        "GroupMDD"                  
+ [3] "GroupPTSD"                  "RegiondACC"                
+ [5] "RegionDLPFC"                "RegionMedialAmyg"          
+ [7] "AgeDeath"                   "SexM"                      
+ [9] "mitoRate"                   "rRNA_rate"                 
+[11] "totalAssignedGene"          "RIN"                       
+[13] "overallMapRate"             "ERCCsumLogErr"             
+[15] "snpPC1"                     "snpPC2"                    
+[17] "snpPC3"                     "snpPC8"                    
+[19] "snpPC9"                     "snpPC10"                   
+[21] "GroupMDD.RegiondACC"        "GroupPTSD.RegiondACC"      
+[23] "GroupMDD.RegionDLPFC"       "GroupPTSD.RegionDLPFC"     
+[25] "GroupMDD.RegionMedialAmyg"  "GroupPTSD.RegionMedialAmyg"
+[27] "PC1"                        "PC2"                       
+[29] "PC3"                        "PC4"                       
+[31] "PC5"                        "PC6"                       
+[33] "PC7"                        "PC8"                       
+[35] "PC9"                        "PC10"                      
+[37] "PC11"                       "PC12"                      
+[39] "PC13"                       "PC14"                      
+[41] "PC15"                       "PC16"                      
+[43] "PC17"                       "PC18"                      
+[45] "PC19"                       "PC20"                      
+> modQsva = modQsva[,c(1:8, 21:26, 9:20, 27:46)]
+> head(modQsva)
+       Int GroupMDD GroupPTSD RegiondACC RegionDLPFC RegionMedialAmyg AgeDeath
+R16254   1        0         1          0           0                0    41.71
+R16050   1        0         1          0           0                1    41.71
+R16315   1        0         1          1           0                0    41.71
+R16015   1        0         1          0           1                0    41.71
+R15943   1        0         1          0           0                0    40.53
+R15823   1        0         1          0           0                1    40.53
+       SexM GroupMDD.RegiondACC GroupPTSD.RegiondACC GroupMDD.RegionDLPFC
+R16254    1                   0                    0                    0
+R16050    1                   0                    0                    0
+R16315    1                   0                    1                    0
+R16015    1                   0                    0                    0
+R15943    1                   0                    0                    0
+R15823    1                   0                    0                    0
+       GroupPTSD.RegionDLPFC GroupMDD.RegionMedialAmyg
+R16254                     0                         0
+R16050                     0                         0
+R16315                     0                         0
+R16015                     1                         0
+R15943                     0                         0
+R15823                     0                         0
+       GroupPTSD.RegionMedialAmyg   mitoRate    rRNA_rate totalAssignedGene RIN
+R16254                          0 0.02663121 1.562905e-04         0.3474869 7.1
+R16050                          1 0.03374476 1.148327e-04         0.3480459 6.7
+R16315                          0 0.02103480 9.949357e-05         0.3606736 6.8
+R16015                          0 0.02652086 8.892012e-05         0.4225928 7.4
+R15943                          0 0.04838333 1.721693e-04         0.3918726 6.3
+R15823                          1 0.04651516 2.277970e-04         0.3646860 7.0
+       overallMapRate ERCCsumLogErr     snpPC1      snpPC2     snpPC3
+R16254         0.8061    -19.762861  0.1276800 -0.00734816 -0.0178312
+R16050         0.7731    -15.263356  0.1276800 -0.00734816 -0.0178312
+R16315         0.8582    -27.288209  0.1276800 -0.00734816 -0.0178312
+R16015         0.8688    -27.910392  0.1276800 -0.00734816 -0.0178312
+R15943         0.7048     -6.500831 -0.0240917 -0.00641316 -0.0228262
+R15823         0.7336    -17.678529 -0.0240917 -0.00641316 -0.0228262
+             snpPC8     snpPC9      snpPC10        PC1       PC2        PC3
+R16254 -0.000202292 0.00124942  0.000412613 -37.268158  3.903986 -0.2531635
+R16050 -0.000202292 0.00124942  0.000412613 -36.036007  1.470234  0.3152461
+R16315 -0.000202292 0.00124942  0.000412613 -22.090257  5.831369  1.7666737
+R16015 -0.000202292 0.00124942  0.000412613   2.299972  3.733059  2.6697834
+R15943  0.008276590 0.00246881 -0.002414600 -26.831869 -3.464622  2.7478295
+R15823  0.008276590 0.00246881 -0.002414600 -36.845059 -4.016426  2.6244489
+              PC4       PC5       PC6       PC7        PC8        PC9
+R16254 -0.2806576 -2.488847 3.3710890  3.534302 -2.7039811 -1.0074505
+R16050  0.5670313 -1.630014 0.4094878  1.179453 -2.3475011  0.2166394
+R16315  4.1576291 -1.699035 0.6941695 -1.449301 -1.7396449  0.6173959
+R16015  3.0755656 -2.353001 2.6269997 -2.219961 -0.5259872  0.2443974
+R15943  3.7888751 -3.014113 1.1689602 -2.078227 -3.2030330  0.7391280
+R15823  1.2630444 -2.468243 0.5918710  1.107380 -1.0558462 -1.3517549
+             PC10        PC11        PC12        PC13        PC14        PC15
+R16254  0.6247643  0.50004214 -2.39403139  0.02623977 -0.05099905  1.17106803
+R16050  0.3703329 -0.10137596 -0.27230554  0.02676258 -0.33844562 -0.01795500
+R16315  0.6055898  0.15738691 -2.26901174 -0.61429683  0.73688120 -0.99399586
+R16015 -0.2413631 -0.03425117 -0.94375432  0.63988321  0.63268395 -0.09317681
+R15943  1.2814993  0.86665318 -1.34559785 -0.68729175  1.16507944 -1.55303078
+R15823  0.5326331  0.52509633 -0.06321386  0.10293867 -0.94722401 -1.37807541
+              PC16        PC17       PC18      PC19       PC20
+R16254 -0.67314489 -1.16629458  0.8362304 1.9161399 -1.2887230
+R16050 -0.65533723 -0.53265449  1.0372134 1.7177210 -0.2721466
+R16315 -0.01042288 -0.32982723  0.3904171 0.9049070 -0.4734105
+R16015  0.13856621  0.14500799 -0.0178818 1.5593775 -0.6847814
+R15943 -0.35831317  0.05719871 -0.5763404 0.4606816 -0.9858175
+R15823 -0.91069995 -0.16303313 -0.1726028 1.1707793  1.2867463
+> 
+> ## clean expression
+> geneExprs = log2(getRPKM(rse_gene,"Length")+1)
+> geneExprsClean = cleaningY(geneExprs, modQsva, P=14)
+> 
+> 
+> #########################
+> sftthresh1 <- pickSoftThreshold(t(geneExprsClean), powerVector = c(seq(1, 10, by = 1), seq(12, 20, by = 2)), networkType = "signed", verbose = 5)
+pickSoftThreshold: will use block size 1719.
+ pickSoftThreshold: calculating connectivity for given powers...
+   ..working on genes 1 through 1719 of 26020
+   ..working on genes 1720 through 3438 of 26020
+   ..working on genes 3439 through 5157 of 26020
+   ..working on genes 5158 through 6876 of 26020
+   ..working on genes 6877 through 8595 of 26020
+   ..working on genes 8596 through 10314 of 26020
+   ..working on genes 10315 through 12033 of 26020
+   ..working on genes 12034 through 13752 of 26020
+   ..working on genes 13753 through 15471 of 26020
+   ..working on genes 15472 through 17190 of 26020
+   ..working on genes 17191 through 18909 of 26020
+   ..working on genes 18910 through 20628 of 26020
+   ..working on genes 20629 through 22347 of 26020
+   ..working on genes 22348 through 24066 of 26020
+   ..working on genes 24067 through 25785 of 26020
+   ..working on genes 25786 through 26020 of 26020
+   Power SFT.R.sq slope truncated.R.sq  mean.k. median.k.  max.k.
+1      1  0.02250 10.30          0.977 1.33e+04  1.33e+04 14100.0
+2      2  0.00558  2.66          0.958 6.82e+03  6.79e+03  7730.0
+3      3  0.00992 -2.25          0.940 3.52e+03  3.50e+03  4300.0
+4      4  0.05610 -3.94          0.923 1.83e+03  1.82e+03  2420.0
+5      5  0.14600 -4.86          0.911 9.62e+02  9.51e+02  1380.0
+6      6  0.28100 -5.33          0.921 5.09e+02  5.01e+02   797.0
+7      7  0.42700 -5.37          0.950 2.71e+02  2.65e+02   466.0
+8      8  0.56700 -4.59          0.964 1.46e+02  1.42e+02   276.0
+9      9  0.78300 -5.11          0.989 7.96e+01  7.63e+01   186.0
+10    10  0.88500 -4.79          0.985 4.39e+01  4.13e+01   134.0
+11    12  0.96300 -3.66          0.974 1.40e+01  1.24e+01    78.5
+12    14  0.99100 -2.79          0.988 4.83e+00  3.85e+00    52.3
+13    16  0.99400 -2.20          0.994 1.86e+00  1.24e+00    38.0
+14    18  0.99100 -1.89          0.989 8.19e-01  4.10e-01    31.4
+15    20  0.98700 -1.68          0.990 4.18e-01  1.41e-01    26.5
+> cat(sftthresh1$powerEstimate)
+10> save(sftthresh1, file = "Data/rdas/WGCNA/AllRegions/power_object_allregions.rda")
+> 
+> ## run wgcna
+> net = blockwiseModules(t(geneExprsClean), power = sftthresh1$powerEstimate,
++                             networkType = "signed", minModuleSize = 30,corType="bicor",
++                             reassignThreshold = 0, mergeCutHeight = 0.25,
++                             numericLabels = TRUE, pamRespectsDendro = FALSE,
++                             saveTOMs = TRUE, verbose = 5, maxBlockSize = 30000,
++                             saveTOMFileBase = "Data/rdas/WGCNA/AllRegions/wgcna_signed_TOM_allregions")
+ Calculating module eigengenes block-wise from all genes
+   Flagging genes and samples with too many missing values...
+    ..step 1
+ ..Working on block 1 .
+    TOM calculation: adjacency..
+    ..will use 8 parallel threads.
+alpha: 1.000000
+     Fraction of slow calculations: 0.000000
+    ..connectivity..
+    ..matrix multiplication (system BLAS)..
+    ..normalization..
+    ..done.
+   ..saving TOM for block 1 into file Data/rdas/WGCNA/AllRegions/wgcna_signed_TOM_allregions-block.1.RData
+ ....clustering..
+ ....detecting modules..
+     ..done.
+ ....calculating module eigengenes..
+     moduleEigengenes : Working on ME for module 1
+     moduleEigengenes : Working on ME for module 2
+     moduleEigengenes : Working on ME for module 3
+     moduleEigengenes : Working on ME for module 4
+     moduleEigengenes : Working on ME for module 5
+     moduleEigengenes : Working on ME for module 6
+     moduleEigengenes : Working on ME for module 7
+     moduleEigengenes : Working on ME for module 8
+     moduleEigengenes : Working on ME for module 9
+     moduleEigengenes : Working on ME for module 10
+     moduleEigengenes : Working on ME for module 11
+     moduleEigengenes : Working on ME for module 12
+     moduleEigengenes : Working on ME for module 13
+     moduleEigengenes : Working on ME for module 14
+     moduleEigengenes : Working on ME for module 15
+     moduleEigengenes : Working on ME for module 16
+     moduleEigengenes : Working on ME for module 17
+     moduleEigengenes : Working on ME for module 18
+     moduleEigengenes : Working on ME for module 19
+     moduleEigengenes : Working on ME for module 20
+     moduleEigengenes : Working on ME for module 21
+     moduleEigengenes : Working on ME for module 22
+     moduleEigengenes : Working on ME for module 23
+     moduleEigengenes : Working on ME for module 24
+     moduleEigengenes : Working on ME for module 25
+ ....checking kME in modules..
+     ..removing 423 genes from module 1 because their KME is too low.
+     ..removing 130 genes from module 2 because their KME is too low.
+     ..removing 190 genes from module 3 because their KME is too low.
+     ..removing 6 genes from module 5 because their KME is too low.
+     ..removing 24 genes from module 6 because their KME is too low.
+ ..merging modules that are too close..
+     mergeCloseModules: Merging modules whose distance is less than 0.25
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 26 module eigengenes in given set.
+alpha: 1.000000
+       Calculating new MEs...
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 26 module eigengenes in given set.
+alpha: 1.000000
+> fNames = rownames(geneExprs)
+> save(net, fNames, file = "Data/rdas/WGCNA/AllRegions/constructed_network_signed_bicor_allregions.rda")
+> 
+> 
+> ###########################
+> ### test ME associations ##
+> ###########################
+> coefAdj_MDD = t(apply(net$MEs, 2, function(y)
++   summary(lm(y~ modQsva[ ,1:14] -1))$coef[2,]))
+> coefAdj_PTSD = t(apply(net$MEs, 2, function(y)
++   summary(lm(y~ modQsva[ ,1:14] -1))$coef[3,]))
+> coefAdj_onlyPTSD = t(apply(net$MEs, 2, function(y)
++   summary(lm(y~ modQsva[ ,c(1,3:14)] -1))$coef[2,]))
+> 
+> coefList = lapply(as.data.frame(net$MEs), function(y) {
++   summary(lm(y~ modQsva[ , 1:14] -1))
++ })
+> 
+> save(coefAdj_MDD,coefAdj_PTSD,coefAdj_onlyPTSD,coefList,
++ 	file="Data/rdas/WGCNA/AllRegions/MEvsDx_allregions.rda")
+> 
+> #GO using clusterProfiler
+> library(clusterProfiler)
+Registered S3 method overwritten by 'enrichplot':
+  method               from
+  fortify.enrichResult DOSE
+clusterProfiler v3.14.3  For help: https://guangchuangyu.github.io/software/clusterProfiler
+
+If you use clusterProfiler in published research, please cite:
+Guangchuang Yu, Li-Gen Wang, Yanyan Han, Qing-Yu He. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS: A Journal of Integrative Biology. 2012, 16(5):284-287.
+
+Attaching package: ‘clusterProfiler’
+
+The following object is masked from ‘package:DelayedArray’:
+
+    simplify
+
+> library(org.Hs.eg.db)
+Loading required package: AnnotationDbi
+
+> 				  
+> #make matrix
+> # split genes into modules
+> moduleGeneList_adj = split(rowData(rse_gene)$EntrezID, net$colors)
+> moduleGeneList_adj = lapply(moduleGeneList_adj, function(x) x[!is.na(x)])
+> names(moduleGeneList_adj) = paste0("allregions_", names(moduleGeneList_adj))
+> 
+> #universe of expressed genes
+> universe <- as.character(rowData(rse_gene)$EntrezID[!is.na(rowData(rse_gene)$EntrezID)])
+> 
+> ## run GO 
+> go_modules <- compareCluster(moduleGeneList_adj, fun = "enrichGO",
++                 universe = universe, OrgDb = org.Hs.eg.db,
++                 ont = "ALL", pAdjustMethod = "BH",
++                 pvalueCutoff  = 1, qvalueCutoff  = 1,
++                                 readable= TRUE)
+> 
+> save(go_modules, file="Data/rdas/WGCNA/AllRegions/wgcna_allregions_GO_clusterProfiler.rda")
+> 
+> ## Reproducibility information
+> print('Reproducibility information:')
+[1] "Reproducibility information:"
+> Sys.time()
+[1] "2020-05-19 19:28:00 EDT"
+> proc.time()
+     user    system   elapsed 
+16303.932   580.331 16794.606 
+> options(width = 120)
+> devtools::session_info()
+─ Session info ───────────────────────────────────────────────────────────────────────────────────────────────────────
+ setting  value                                      
+ version  R version 3.6.1 Patched (2019-10-31 r77350)
+ os       CentOS Linux 7 (Core)                      
+ system   x86_64, linux-gnu                          
+ ui       X11                                        
+ language (EN)                                       
+ collate  en_US.UTF-8                                
+ ctype    en_US.UTF-8                                
+ tz       US/Eastern                                 
+ date     2020-05-19                                 
+
+─ Packages ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+ package              * version  date       lib source                                   
+ acepack                1.4.1    2016-10-29 [2] CRAN (R 3.6.1)                           
+ annotate               1.64.0   2019-10-29 [2] Bioconductor                             
+ AnnotationDbi        * 1.48.0   2019-10-29 [2] Bioconductor                             
+ askpass                1.1      2019-01-13 [2] CRAN (R 3.6.1)                           
+ assertthat             0.2.1    2019-03-21 [2] CRAN (R 3.6.1)                           
+ backports              1.1.6    2020-04-05 [1] CRAN (R 3.6.1)                           
+ base64enc              0.1-3    2015-07-28 [2] CRAN (R 3.6.1)                           
+ Biobase              * 2.46.0   2019-10-29 [2] Bioconductor                             
+ BiocFileCache          1.10.2   2019-11-08 [2] Bioconductor                             
+ BiocGenerics         * 0.32.0   2019-10-29 [2] Bioconductor                             
+ BiocManager            1.30.10  2019-11-16 [2] CRAN (R 3.6.1)                           
+ BiocParallel         * 1.20.1   2019-12-21 [2] Bioconductor                             
+ biomaRt                2.42.0   2019-10-29 [2] Bioconductor                             
+ Biostrings             2.54.0   2019-10-29 [2] Bioconductor                             
+ bit                    1.1-15.2 2020-02-10 [2] CRAN (R 3.6.1)                           
+ bit64                  0.9-7    2017-05-08 [2] CRAN (R 3.6.1)                           
+ bitops                 1.0-6    2013-08-17 [2] CRAN (R 3.6.1)                           
+ blob                   1.2.1    2020-01-20 [2] CRAN (R 3.6.1)                           
+ BSgenome               1.54.0   2019-10-29 [2] Bioconductor                             
+ bumphunter             1.28.0   2019-10-29 [2] Bioconductor                             
+ callr                  3.4.3    2020-03-28 [1] CRAN (R 3.6.1)                           
+ checkmate              2.0.0    2020-02-06 [2] CRAN (R 3.6.1)                           
+ cli                    2.0.2    2020-02-28 [1] CRAN (R 3.6.1)                           
+ cluster                2.1.0    2019-06-19 [3] CRAN (R 3.6.1)                           
+ clusterProfiler      * 3.14.3   2020-01-08 [1] Bioconductor                             
+ codetools              0.2-16   2018-12-24 [3] CRAN (R 3.6.1)                           
+ colorspace             1.4-1    2019-03-18 [2] CRAN (R 3.6.1)                           
+ cowplot                1.0.0    2019-07-11 [1] CRAN (R 3.6.1)                           
+ crayon                 1.3.4    2017-09-16 [2] CRAN (R 3.6.1)                           
+ curl                   4.3      2019-12-02 [2] CRAN (R 3.6.1)                           
+ data.table             1.12.8   2019-12-09 [2] CRAN (R 3.6.1)                           
+ DBI                    1.1.0    2019-12-15 [2] CRAN (R 3.6.1)                           
+ dbplyr                 1.4.2    2019-06-17 [2] CRAN (R 3.6.1)                           
+ DelayedArray         * 0.12.2   2020-01-06 [2] Bioconductor                             
+ DEoptimR               1.0-8    2016-11-19 [2] CRAN (R 3.6.1)                           
+ derfinder              1.20.0   2019-10-29 [2] Bioconductor                             
+ derfinderHelper        1.20.0   2019-10-29 [2] Bioconductor                             
+ desc                   1.2.0    2018-05-01 [2] CRAN (R 3.6.1)                           
+ devtools               2.2.2    2020-02-17 [2] CRAN (R 3.6.1)                           
+ digest                 0.6.25   2020-02-23 [1] CRAN (R 3.6.1)                           
+ DO.db                  2.9      2020-02-06 [1] Bioconductor                             
+ doParallel             1.0.15   2019-08-02 [2] CRAN (R 3.6.1)                           
+ doRNG                  1.8.2    2020-01-27 [2] CRAN (R 3.6.1)                           
+ DOSE                   3.12.0   2019-10-29 [1] Bioconductor                             
+ downloader             0.4      2015-07-09 [2] CRAN (R 3.6.1)                           
+ dplyr                  0.8.4    2020-01-31 [2] CRAN (R 3.6.1)                           
+ dynamicTreeCut       * 1.63-1   2016-03-11 [1] CRAN (R 3.6.1)                           
+ ellipsis               0.3.0    2019-09-20 [2] CRAN (R 3.6.1)                           
+ enrichplot             1.6.1    2019-12-16 [1] Bioconductor                             
+ europepmc              0.3      2018-04-20 [1] CRAN (R 3.6.1)                           
+ fansi                  0.4.1    2020-01-08 [2] CRAN (R 3.6.1)                           
+ farver                 2.0.3    2020-01-16 [1] CRAN (R 3.6.1)                           
+ fastcluster          * 1.1.25   2018-06-07 [2] CRAN (R 3.6.1)                           
+ fastmatch              1.1-0    2017-01-28 [1] CRAN (R 3.6.1)                           
+ fgsea                  1.12.0   2019-10-29 [1] Bioconductor                             
+ fit.models             0.5-14   2017-04-06 [1] CRAN (R 3.6.1)                           
+ foreach                1.4.8    2020-02-09 [2] CRAN (R 3.6.1)                           
+ foreign                0.8-72   2019-08-02 [3] CRAN (R 3.6.1)                           
+ Formula                1.2-3    2018-05-03 [2] CRAN (R 3.6.1)                           
+ fs                     1.3.1    2019-05-06 [2] CRAN (R 3.6.1)                           
+ genefilter           * 1.68.0   2019-10-29 [2] Bioconductor                             
+ GenomeInfoDb         * 1.22.0   2019-10-29 [2] Bioconductor                             
+ GenomeInfoDbData       1.2.2    2019-10-28 [2] Bioconductor                             
+ GenomicAlignments      1.22.1   2019-11-12 [2] Bioconductor                             
+ GenomicFeatures        1.38.2   2020-02-15 [2] Bioconductor                             
+ GenomicFiles           1.22.0   2019-10-29 [2] Bioconductor                             
+ GenomicRanges        * 1.38.0   2019-10-29 [2] Bioconductor                             
+ GEOquery               2.54.1   2019-11-18 [2] Bioconductor                             
+ ggforce                0.3.1    2019-08-20 [2] CRAN (R 3.6.1)                           
+ ggplot2                3.3.0    2020-03-05 [1] CRAN (R 3.6.1)                           
+ ggplotify              0.0.4    2019-08-06 [1] CRAN (R 3.6.1)                           
+ ggraph                 2.0.1    2020-02-07 [2] CRAN (R 3.6.1)                           
+ ggrepel                0.8.2    2020-03-08 [1] CRAN (R 3.6.1)                           
+ ggridges               0.5.1    2018-09-27 [1] CRAN (R 3.6.1)                           
+ glue                   1.4.0    2020-04-03 [1] CRAN (R 3.6.1)                           
+ GO.db                  3.10.0   2019-10-28 [2] Bioconductor                             
+ googledrive            1.0.0    2019-08-19 [1] CRAN (R 3.6.1)                           
+ GOSemSim               2.12.0   2019-10-29 [1] Bioconductor                             
+ graphlayouts           0.5.0    2019-08-20 [2] CRAN (R 3.6.1)                           
+ gridExtra              2.3      2017-09-09 [2] CRAN (R 3.6.1)                           
+ gridGraphics           0.4-1    2019-05-20 [1] CRAN (R 3.6.1)                           
+ gtable                 0.3.0    2019-03-25 [2] CRAN (R 3.6.1)                           
+ Hmisc                  4.3-1    2020-02-07 [2] CRAN (R 3.6.1)                           
+ hms                    0.5.3    2020-01-08 [2] CRAN (R 3.6.1)                           
+ htmlTable              1.13.3   2019-12-04 [2] CRAN (R 3.6.1)                           
+ htmltools              0.4.0    2019-10-04 [2] CRAN (R 3.6.1)                           
+ htmlwidgets            1.5.1    2019-10-08 [2] CRAN (R 3.6.1)                           
+ httr                   1.4.1    2019-08-05 [2] CRAN (R 3.6.1)                           
+ igraph                 1.2.4.2  2019-11-27 [2] CRAN (R 3.6.1)                           
+ impute                 1.60.0   2019-10-29 [2] Bioconductor                             
+ IRanges              * 2.20.2   2020-01-13 [2] Bioconductor                             
+ iterators              1.0.12   2019-07-26 [2] CRAN (R 3.6.1)                           
+ jaffelab             * 0.99.29  2019-11-08 [1] Github (LieberInstitute/jaffelab@a7d87cb)
+ jpeg                   0.1-8.1  2019-10-24 [2] CRAN (R 3.6.1)                           
+ jsonlite               1.6.1    2020-02-02 [2] CRAN (R 3.6.1)                           
+ knitr                  1.28     2020-02-06 [2] CRAN (R 3.6.1)                           
+ lattice                0.20-38  2018-11-04 [3] CRAN (R 3.6.1)                           
+ latticeExtra           0.6-29   2019-12-19 [2] CRAN (R 3.6.1)                           
+ lifecycle              0.2.0    2020-03-06 [1] CRAN (R 3.6.1)                           
+ limma                  3.42.2   2020-02-03 [2] Bioconductor                             
+ locfit                 1.5-9.1  2013-04-20 [2] CRAN (R 3.6.1)                           
+ magrittr               1.5      2014-11-22 [2] CRAN (R 3.6.1)                           
+ MASS                   7.3-51.4 2019-03-31 [3] CRAN (R 3.6.1)                           
+ Matrix                 1.2-17   2019-03-22 [3] CRAN (R 3.6.1)                           
+ matrixStats          * 0.55.0   2019-09-07 [2] CRAN (R 3.6.1)                           
+ memoise                1.1.0    2017-04-21 [2] CRAN (R 3.6.1)                           
+ mgcv                 * 1.8-30   2019-10-24 [3] CRAN (R 3.6.1)                           
+ munsell                0.5.0    2018-06-12 [2] CRAN (R 3.6.1)                           
+ mvtnorm                1.0-12   2020-01-09 [2] CRAN (R 3.6.1)                           
+ nlme                 * 3.1-141  2019-08-01 [3] CRAN (R 3.6.1)                           
+ nnet                   7.3-12   2016-02-02 [3] CRAN (R 3.6.1)                           
+ openssl                1.4.1    2019-07-18 [2] CRAN (R 3.6.1)                           
+ org.Hs.eg.db         * 3.10.0   2019-10-28 [2] Bioconductor                             
+ pcaPP                  1.9-73   2018-01-14 [1] CRAN (R 3.6.1)                           
+ pillar                 1.4.4    2020-05-05 [1] CRAN (R 3.6.1)                           
+ pkgbuild               1.0.8    2020-05-07 [1] CRAN (R 3.6.1)                           
+ pkgconfig              2.0.3    2019-09-22 [2] CRAN (R 3.6.1)                           
+ pkgload                1.0.2    2018-10-29 [2] CRAN (R 3.6.1)                           
+ plyr                   1.8.5    2019-12-10 [2] CRAN (R 3.6.1)                           
+ png                    0.1-7    2013-12-03 [2] CRAN (R 3.6.1)                           
+ polyclip               1.10-0   2019-03-14 [2] CRAN (R 3.6.1)                           
+ preprocessCore         1.48.0   2019-10-29 [2] Bioconductor                             
+ prettyunits            1.1.1    2020-01-24 [2] CRAN (R 3.6.1)                           
+ processx               3.4.2    2020-02-09 [2] CRAN (R 3.6.1)                           
+ progress               1.2.2    2019-05-16 [2] CRAN (R 3.6.1)                           
+ ps                     1.3.3    2020-05-08 [1] CRAN (R 3.6.1)                           
+ purrr                  0.3.3    2019-10-18 [2] CRAN (R 3.6.1)                           
+ qvalue                 2.18.0   2019-10-29 [2] Bioconductor                             
+ R6                     2.4.1    2019-11-12 [1] CRAN (R 3.6.1)                           
+ rafalib              * 1.0.0    2015-08-09 [1] CRAN (R 3.6.1)                           
+ rappdirs               0.3.1    2016-03-28 [2] CRAN (R 3.6.1)                           
+ RColorBrewer           1.1-2    2014-12-07 [2] CRAN (R 3.6.1)                           
+ Rcpp                   1.0.4.6  2020-04-09 [1] CRAN (R 3.6.1)                           
+ RCurl                  1.98-1.1 2020-01-19 [2] CRAN (R 3.6.1)                           
+ readr                  1.3.1    2018-12-21 [2] CRAN (R 3.6.1)                           
+ recount              * 1.12.1   2019-11-06 [2] Bioconductor                             
+ remotes                2.1.1    2020-02-15 [2] CRAN (R 3.6.1)                           
+ rentrez                1.2.2    2019-05-02 [2] CRAN (R 3.6.1)                           
+ reshape2               1.4.3    2017-12-11 [2] CRAN (R 3.6.1)                           
+ rlang                  0.4.6    2020-05-02 [1] CRAN (R 3.6.1)                           
+ rngtools               1.5      2020-01-23 [2] CRAN (R 3.6.1)                           
+ robust                 0.4-18.2 2019-12-26 [1] CRAN (R 3.6.1)                           
+ robustbase             0.93-5   2019-05-12 [2] CRAN (R 3.6.1)                           
+ rpart                  4.1-15   2019-04-12 [3] CRAN (R 3.6.1)                           
+ rprojroot              1.3-2    2018-01-03 [2] CRAN (R 3.6.1)                           
+ rrcov                  1.5-2    2020-01-16 [1] CRAN (R 3.6.1)                           
+ Rsamtools              2.2.2    2020-02-11 [2] Bioconductor                             
+ RSQLite                2.2.0    2020-01-07 [2] CRAN (R 3.6.1)                           
+ rstudioapi             0.11     2020-02-07 [2] CRAN (R 3.6.1)                           
+ rtracklayer            1.46.0   2019-10-29 [2] Bioconductor                             
+ rvcheck                0.1.7    2019-11-29 [1] CRAN (R 3.6.1)                           
+ S4Vectors            * 0.24.3   2020-01-18 [2] Bioconductor                             
+ scales                 1.1.1    2020-05-11 [1] CRAN (R 3.6.1)                           
+ segmented              1.1-0    2019-12-10 [2] CRAN (R 3.6.1)                           
+ sessioninfo            1.1.1    2018-11-05 [2] CRAN (R 3.6.1)                           
+ stringi                1.4.6    2020-02-17 [2] CRAN (R 3.6.1)                           
+ stringr                1.4.0    2019-02-10 [2] CRAN (R 3.6.1)                           
+ SummarizedExperiment * 1.16.1   2019-12-19 [2] Bioconductor                             
+ survival               3.1-8    2019-12-03 [2] CRAN (R 3.6.1)                           
+ sva                  * 3.34.0   2019-10-29 [2] Bioconductor                             
+ testthat               2.3.2    2020-03-02 [1] CRAN (R 3.6.1)                           
+ tibble                 3.0.1    2020-04-20 [1] CRAN (R 3.6.1)                           
+ tidygraph              1.1.2    2019-02-18 [2] CRAN (R 3.6.1)                           
+ tidyr                  1.0.2    2020-01-24 [2] CRAN (R 3.6.1)                           
+ tidyselect             1.0.0    2020-01-27 [2] CRAN (R 3.6.1)                           
+ triebeard              0.3.0    2016-08-04 [1] CRAN (R 3.6.1)                           
+ tweenr                 1.0.1    2018-12-14 [2] CRAN (R 3.6.1)                           
+ urltools               1.7.3    2019-04-14 [1] CRAN (R 3.6.1)                           
+ usethis                1.5.1    2019-07-04 [2] CRAN (R 3.6.1)                           
+ VariantAnnotation      1.32.0   2019-10-29 [2] Bioconductor                             
+ vctrs                  0.3.0    2020-05-11 [1] CRAN (R 3.6.1)                           
+ viridis                0.5.1    2018-03-29 [2] CRAN (R 3.6.1)                           
+ viridisLite            0.3.0    2018-02-01 [2] CRAN (R 3.6.1)                           
+ WGCNA                * 1.68     2019-05-23 [1] CRAN (R 3.6.1)                           
+ withr                  2.2.0    2020-04-20 [1] CRAN (R 3.6.1)                           
+ xfun                   0.12     2020-01-13 [2] CRAN (R 3.6.1)                           
+ XML                    3.99-0.3 2020-01-20 [2] CRAN (R 3.6.1)                           
+ xml2                   1.2.2    2019-08-09 [2] CRAN (R 3.6.1)                           
+ xtable                 1.8-4    2019-04-21 [2] CRAN (R 3.6.1)                           
+ XVector                0.26.0   2019-10-29 [2] Bioconductor                             
+ zlibbioc               1.32.0   2019-10-29 [2] Bioconductor                             
+
+[1] /users/ajaffe/R/3.6.x
+[2] /jhpce/shared/jhpce/core/conda/miniconda3-4.6.14/envs/svnR-3.6.x/R/3.6.x/lib64/R/site-library
+[3] /jhpce/shared/jhpce/core/conda/miniconda3-4.6.14/envs/svnR-3.6.x/R/3.6.x/lib64/R/library
+> 
+> proc.time()
+     user    system   elapsed 
+16305.343   580.574 16803.787 

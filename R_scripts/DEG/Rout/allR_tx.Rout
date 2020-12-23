@@ -1,0 +1,289 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ############################################################################################33
+> #Load up
+> 
+> library(jaffelab)
+Loading required package: rafalib
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> library('readxl')
+> library('devtools')
+Loading required package: usethis
+
+Attaching package: ‘devtools’
+
+The following object is masked from ‘package:rafalib’:
+
+    install_bioc
+
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(limma)
+
+Attaching package: ‘limma’
+
+The following object is masked from ‘package:BiocGenerics’:
+
+    plotMA
+
+> library(edgeR)
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> load('rdas/rse_tx_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> 
+> #transcript
+> colData(rse_tx) = cbind(colData(rse_tx) , mds[rse_tx$BrNum,])
+> 
+> #transcript
+> tIndex = rowMeans(assays(rse_tx)$tpm) > 0.2
+> rse_tx <- rse_tx[tIndex , ]
+> 
+> load('rdas/PTSD_qsvs_Regionintxn.Rdata',verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSV_mat
+  modQsva
+  mod
+> 
+> ##### TRANSCRIPT ######
+> 
+> txExprs = log2(assays(rse_tx)$tpm+ 1)
+> 
+> ## do duplicate correlation
+> tx_dupCorr = duplicateCorrelation(txExprs, modQsva, block=colData(rse_tx)$BrNum)
+> save(tx_dupCorr, file = "rdas/txLevel_duplicateCorrelation_limma_forDE_PTSD.rda")
+> 
+> # and then fit
+> fitTx = lmFit(txExprs, modQsva,
++         correlation=tx_dupCorr$consensus.correlation,
++         block=colData(rse_tx)$BrNum)
+> eBTx = eBayes(fitTx)
+> 
+> #MDD vs controls (analysis 1)
+> sigTxMDD = topTable(eBTx,coef=2,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxMDD) = paste0(colnames(sigTxMDD), "_MDD")
+> 
+> #PTSD vs controls (analysis 1)
+> sigTxPTSD = topTable(eBTx,coef=3,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxPTSD) = paste0(colnames(sigTxPTSD), "_PTSD")
+> 
+> #Interaction of diagnosis (analysis 3)
+> sigTxDx = topTable(eBTx,coef=2:3,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxDx) = paste0(colnames(sigTxDx), "_ANOVA")
+> 
+> #PTSDvsMDD using limma
+> PTSDvsMDDContrast <- makeContrasts(GroupPTSD-GroupMDD,levels=modQsva)
+> PTSDvsMDDPostTx = topTable(eBayes(contrasts.fit(fitTx, PTSDvsMDDContrast)),
++     coef=1,  p.value = 1, genelist = rowRanges(rse_tx), sort="none", n = nrow(rse_tx))
+> colnames(PTSDvsMDDPostTx) = paste0(colnames(PTSDvsMDDPostTx), "_PTSDvsMDD")
+> 
+> #Region interaction MDD
+> outTx_interactionEffect_MDD = topTable(eBTx,coef=c(21,23,25),
++         p.value = 1,number=nrow(rse_tx), sort="none")
+> colnames(outTx_interactionEffect_MDD) = paste0(colnames(outTx_interactionEffect_MDD), "_rintxnMDD")
+> 												 
+> #Region interaction PTSD
+> outTx_interactionEffect_PTSD = topTable(eBTx,coef=c(22,24,26),
++         p.value = 1,number=nrow(rse_tx), sort="none")
+> colnames(outTx_interactionEffect_PTSD) = paste0(colnames(outTx_interactionEffect_PTSD), "_rintxnPTSD")
+> 
+> #Region effect
+> sigTxRegion = topTable(eBTx,coef=c(4,5,6),
++ 	p.value = 1,number=nrow(rse_tx), sort="none")
+> colnames(sigTxRegion) = paste0(colnames(sigTxRegion), "_Region")
+> 
+> #onlyPTSD analysis (analysis 2)
+> # 1. redefine model
+> # 2. add to geneStats
+> 
+> load('rdas/rse_tx_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> 
+> #transcript
+> colData(rse_tx) = cbind(colData(rse_tx) , mds[rse_tx$BrNum,])
+> 
+> #transcript
+> tIndex = rowMeans(assays(rse_tx)$tpm) > 0.2
+> rse_tx <- rse_tx[tIndex , ]
+> 
+> rse_tx$onlyPTSD = ifelse(rse_tx$Group == "PTSD" ,1, 0) 
+> 
+> load('rdas/PTSD_qsvs_Regionintxn_onlyPTSD.Rdata',verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSV_mat
+  modQsva
+  mod
+> 
+> ##### TRANSCRIPT ######
+> 
+> txExprs = log2(assays(rse_tx)$tpm+ 1)
+> 
+> ## do duplicate correlation
+> tx_dupCorr = duplicateCorrelation(txExprs, modQsva, block=colData(rse_tx)$BrNum)
+> save(tx_dupCorr, file = "rdas/txLevel_duplicateCorrelation_limma_forDE_PTSD_onlyPTSD.rda")
+> 
+> # and then fit
+> fitTx = lmFit(txExprs, modQsva,
++         correlation=tx_dupCorr$consensus.correlation,
++         block=colData(rse_tx)$BrNum)
+> eBTx = eBayes(fitTx)
+> 
+> #PTSD only
+> sigTxonlyPTSD = topTable(eBTx,coef=2,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxonlyPTSD) = paste0(colnames(sigTxonlyPTSD), "_onlyPTSD")
+> 
+> #Region interaction onlyPTSD
+> outTx_interactionEffect_onlyPTSD = topTable(eBTx,coef=c(20:22),
++         p.value = 1,number=nrow(rse_tx), sort="none")
+> colnames(outTx_interactionEffect_onlyPTSD) = paste0(colnames(outTx_interactionEffect_onlyPTSD), "_rintxnonlyPTSD")
+> 								
+> #Region effect
+> sigTxRegion_onlyPTSD = topTable(eBTx,coef=c(3,4,5),
++ 	p.value = 1,number=nrow(rse_tx), sort="none")
+> colnames(sigTxRegion_onlyPTSD) = paste0(colnames(sigTxRegion_onlyPTSD), "_Region_onlyPTSD")
+> 
+> ####### TRANSCRIPT ########
+> #All columns
+> txStatsall = cbind(sigTxPTSD, sigTxMDD, sigTxDx, sigTxonlyPTSD, PTSDvsMDDPostTx, sigTxRegion, outTx_interactionEffect_MDD, 
++ 	outTx_interactionEffect_PTSD, outTx_interactionEffect_onlyPTSD,sigTxRegion_onlyPTSD)
+> txStatsall = cbind(txStatsall, rowData(rse_tx))
+> ## write out qSVA-based stats
+> save(txStatsall, file = "rdas/all_regions/txStats_allcols_DE_qSVA_lowlyexpressedfilter_allregions_threeGroup.rda")
+> 
+> 
+> 
+> ## Reproducibility information
+> print('Reproducibility information:')
+[1] "Reproducibility information:"
+> Sys.time()
+[1] "2020-02-19 02:49:28 EST"
+> proc.time()
+      user     system    elapsed 
+458846.946   5155.137 464143.105 
+> options(width = 120)
+> session_info()
+Error in get("is_latex_output", asNamespace("knitr")) : 
+  lazy-load database '/jhpce/shared/jhpce/core/conda/miniconda3-4.6.14/envs/svnR-3.6.x/R/3.6.x/lib64/R/site-library/knitr/R/knitr.rdb' is corrupt
+Calls: <Anonymous> ... <Anonymous> -> is_utf8_output -> is_latex_output -> get
+In addition: Warning message:
+In get("is_latex_output", asNamespace("knitr")) :
+  internal error -3 in R_decompress1
+Execution halted
+
+ *** caught bus error ***
+address 0x7fa7740b990c, cause 'non-existent physical address'
+An irrecoverable exception occurred. R is aborting now ...

@@ -1,0 +1,312 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> #######################################################################
+> #MedialAmyg
+> #MDD
+> 
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(jaffelab)
+Loading required package: rafalib
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(WGCNA)
+Loading required package: dynamicTreeCut
+Loading required package: fastcluster
+
+Attaching package: ‘fastcluster’
+
+The following object is masked from ‘package:stats’:
+
+    hclust
+
+
+
+Attaching package: ‘WGCNA’
+
+The following object is masked from ‘package:IRanges’:
+
+    cor
+
+The following object is masked from ‘package:S4Vectors’:
+
+    cor
+
+The following object is masked from ‘package:stats’:
+
+    cor
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> ## multithread
+> allowWGCNAThreads(8)
+Allowing multi-threading with up to 8 threads.
+> 
+> #load rse objects
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> 
+> ###########
+> # filter ##
+> gIndex = rowMeans(getRPKM(rse_gene, "Length")) > 0.2
+> rse_gene <- rse_gene[gIndex , ]
+> 
+> 
+> ##########
+> ## model #
+> ##########
+> 
+> load("rdas/PTSD_qsvs.Rdata",verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSVs
+  mod
+  modQsva
+> 
+> ##ensure intercept, group, agedeath, and sex are up first for cleaning
+> colnames(modQsva)
+ [1] "(Intercept)"       "GroupMDD"          "GroupPTSD"        
+ [4] "AgeDeath"          "SexM"              "RegiondACC"       
+ [7] "RegionDLPFC"       "RegionMedialAmyg"  "mitoRate"         
+[10] "rRNA_rate"         "totalAssignedGene" "RIN"              
+[13] "overallMapRate"    "ERCCsumLogErr"     "snpPC1"           
+[16] "snpPC2"            "snpPC3"            "snpPC8"           
+[19] "snpPC9"            "snpPC10"           "PC1"              
+[22] "PC2"               "PC3"               "PC4"              
+[25] "PC5"               "PC6"               "PC7"              
+[28] "PC8"               "PC9"               "PC10"             
+[31] "PC11"              "PC12"              "PC13"             
+[34] "PC14"              "PC15"              "PC16"             
+[37] "PC17"              "PC18"              "PC19"             
+> modQsva = modQsva[,c(1,2,4,5,3,6:39)]
+> 
+> #filter for MedialAmyg 
+> #gene
+> keepIndex = which(rse_gene$Region == "MedialAmyg")
+> rse_gene <- rse_gene[, keepIndex]
+> 
+> #Get rid of region columns
+> modQsva <- modQsva[keepIndex,!grepl("Region", colnames(modQsva))]
+> colnames(modQsva)[1] = "Int"
+> 
+> ## clean expression
+> geneExprs = log2(getRPKM(rse_gene,"Length")+1)
+> geneExprsClean = cleaningY(geneExprs, modQsva, P=4)
+> 
+> 
+> #########################
+> ## get power
+> powers <- c(1:10, seq(from = 12, to=20, by=2))
+> sftthresh1 <- pickSoftThreshold(t(geneExprsClean), powerVector = powers,
++                                networkType = "signed", verbose = 5)
+pickSoftThreshold: will use block size 1719.
+ pickSoftThreshold: calculating connectivity for given powers...
+   ..working on genes 1 through 1719 of 26020
+   ..working on genes 1720 through 3438 of 26020
+   ..working on genes 3439 through 5157 of 26020
+   ..working on genes 5158 through 6876 of 26020
+   ..working on genes 6877 through 8595 of 26020
+   ..working on genes 8596 through 10314 of 26020
+   ..working on genes 10315 through 12033 of 26020
+   ..working on genes 12034 through 13752 of 26020
+   ..working on genes 13753 through 15471 of 26020
+   ..working on genes 15472 through 17190 of 26020
+   ..working on genes 17191 through 18909 of 26020
+   ..working on genes 18910 through 20628 of 26020
+   ..working on genes 20629 through 22347 of 26020
+   ..working on genes 22348 through 24066 of 26020
+   ..working on genes 24067 through 25785 of 26020
+   ..working on genes 25786 through 26020 of 26020
+   Power SFT.R.sq  slope truncated.R.sq  mean.k. median.k.  max.k.
+1      1  0.01360  7.020          0.981 1.33e+04  1.32e+04 14100.0
+2      2  0.00701  2.640          0.963 6.81e+03  6.79e+03  7750.0
+3      3  0.00185  0.934          0.953 3.53e+03  3.51e+03  4320.0
+4      4  0.00445 -1.040          0.935 1.85e+03  1.83e+03  2450.0
+5      5  0.04020 -2.410          0.925 9.75e+02  9.63e+02  1400.0
+6      6  0.10200 -3.070          0.923 5.20e+02  5.11e+02   814.0
+7      7  0.19900 -3.560          0.934 2.80e+02  2.74e+02   479.0
+8      8  0.30400 -3.730          0.949 1.52e+02  1.48e+02   285.0
+9      9  0.45200 -3.810          0.959 8.38e+01  8.06e+01   177.0
+10    10  0.71800 -4.500          0.977 4.67e+01  4.44e+01   125.0
+11    12  0.94000 -3.910          0.967 1.52e+01  1.38e+01    71.8
+12    14  0.98800 -3.090          0.985 5.29e+00  4.43e+00    49.1
+13    16  0.99000 -2.530          0.988 2.02e+00  1.48e+00    38.6
+14    18  0.97800 -2.140          0.975 8.69e-01  5.12e-01    31.9
+15    20  0.97900 -1.850          0.979 4.26e-01  1.83e-01    27.0
+> #got many warning messages like In eval(xpr, envir = envir) : Some correlations are NA in block 1 : 1719
+> cat(sftthresh1$powerEstimate)
+12> 
+> save(sftthresh1, file = "rdas/WGCNA/power_object_MedialAmyg_MDD.rda")
+> 
+> ## run wgcna
+> net = blockwiseModules(t(geneExprsClean), power = sftthresh1$powerEstimate,
++                             networkType = "signed", minModuleSize = 30,corType="bicor",
++                             reassignThreshold = 0, mergeCutHeight = 0.25,
++                             numericLabels = TRUE, pamRespectsDendro = FALSE,
++                             saveTOMs = TRUE, verbose = 5, maxBlockSize = 30000,
++                             saveTOMFileBase = "rdas/WGCNA/wgcna_signed_TOM_MedialAmyg_MDD")
+ Calculating module eigengenes block-wise from all genes
+   Flagging genes and samples with too many missing values...
+    ..step 1
+ ..Working on block 1 .
+    TOM calculation: adjacency..
+    ..will use 8 parallel threads.
+alpha: 1.000000
+     Fraction of slow calculations: 0.000000
+    ..connectivity..
+    ..matrix multiplication (system BLAS)..
+    ..normalization..
+    ..done.
+   ..saving TOM for block 1 into file rdas/WGCNA/wgcna_signed_TOM_MedialAmyg_MDD-block.1.RData
+ ....clustering..
+ ....detecting modules..
+     ..done.
+ ....calculating module eigengenes..
+     moduleEigengenes : Working on ME for module 1
+     moduleEigengenes : Working on ME for module 2
+     moduleEigengenes : Working on ME for module 3
+     moduleEigengenes : Working on ME for module 4
+     moduleEigengenes : Working on ME for module 5
+     moduleEigengenes : Working on ME for module 6
+     moduleEigengenes : Working on ME for module 7
+     moduleEigengenes : Working on ME for module 8
+     moduleEigengenes : Working on ME for module 9
+     moduleEigengenes : Working on ME for module 10
+     moduleEigengenes : Working on ME for module 11
+     moduleEigengenes : Working on ME for module 12
+     moduleEigengenes : Working on ME for module 13
+     moduleEigengenes : Working on ME for module 14
+     moduleEigengenes : Working on ME for module 15
+ ....checking kME in modules..
+     ..removing 129 genes from module 1 because their KME is too low.
+ ..merging modules that are too close..
+     mergeCloseModules: Merging modules whose distance is less than 0.25
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 16 module eigengenes in given set.
+alpha: 1.000000
+       Calculating new MEs...
+       multiSetMEs: Calculating module MEs.
+         Working on set 1 ...
+         moduleEigengenes: Calculating 16 module eigengenes in given set.
+alpha: 1.000000
+> fNames = rownames(geneExprs)
+> save(net, fNames, file = "rdas/WGCNA/constructed_network_signed_bicor_MedialAmyg_MDD.rda")
+> 
+> ## Reproducibility information
+> print('Reproducibility information:')
+[1] "Reproducibility information:"
+> Sys.time()
+[1] "2020-02-15 21:40:15 EST"
+> proc.time()
+    user   system  elapsed 
+12637.90    58.58 12613.12 
+> options(width = 120)
+> session_info()
+Error in session_info() : could not find function "session_info"
+Execution halted

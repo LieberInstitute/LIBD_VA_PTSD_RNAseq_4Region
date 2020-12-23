@@ -1,0 +1,3333 @@
+
+R version 3.5.1 Patched (2018-10-29 r75535) -- "Feather Spray"
+Copyright (C) 2018 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ## Based on /dcl01/lieber/ajaffe/lab/degradation_experiments/Joint/bipseq_sACC_Amygdala_RiboZero/make_ERs_stranded.R
+> 
+> #Load these modules before running R
+> #module load wiggletools/default
+> #module load ucsctools
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/qsva/dlpfc_amygdala/')
+> library('rtracklayer')
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colMeans,
+    colnames, colSums, dirname, do.call, duplicated, eval, evalq,
+    Filter, Find, get, grep, grepl, intersect, is.unsorted, lapply,
+    lengths, Map, mapply, match, mget, order, paste, pmax, pmax.int,
+    pmin, pmin.int, Position, rank, rbind, Reduce, rowMeans, rownames,
+    rowSums, sapply, setdiff, sort, table, tapply, union, unique,
+    unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+> library('derfinder')
+> library('jaffelab')
+Loading required package: rafalib
+> library('SummarizedExperiment')
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply
+
+> library('recount.bwtool')
+Loading required package: recount
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library('readxl')
+> library('BiocParallel')
+> library('limma')
+
+Attaching package: ‘limma’
+
+The following object is masked from ‘package:BiocGenerics’:
+
+    plotMA
+
+> library('edgeR')
+> library('biomaRt')
+> library('GenomicRanges')
+> library('devtools')
+> 
+> 
+> dir.create("bed", showWarnings = FALSE)
+> dir.create("rdas", showWarnings = FALSE)
+> 
+> ## read in phenotype data
+> ## subset by brain regions of interest, DLPFC and AMYGDALA
+> load('/dcl01/ajaffe/data/lab/qsva_brain/expr_data/rda/rse_gene.Rdata')
+> rse_gene <- rse_gene[, rse_gene$Region %in% c('DLPFC', 'AMYGDALA')]
+> pd = colData(rse_gene)
+> 
+> ## chromosome info
+> chrInfo <- read.table('/dcl01/lieber/ajaffe/Emily/RNAseq-pipeline/Annotation/hg38.chrom.sizes.gencode',
++     header = FALSE, stringsAsFactors = FALSE, col.names = c('chr', 'length'))
+> chrInfo <- subset(chrInfo, chr %in% paste0('chr', c(1:22, 'X', 'Y', 'M')))
+> 
+> ## load stranded mean bigwigs
+> #Be sure that you run /dcl01/ajaffe/data/lab/qsva_brain/means/qsva_bws.R and /dcl01/ajaffe/data/lab/qsva_brain/means/qsva_bws.sh first
+> #Or run them here
+> #Just be sure you loaded modules first
+> 
+> library('recount')
+> library('recount.bwtool')
+> library('devtools')
+> library('SummarizedExperiment')
+> 
+> bw_f_dlpfc <- paste0('/dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/', colData(rse_gene)$SAMPLE_ID[colData(rse_gene)$Region == 'DLPFC'], '.Forward.bw')
+> 
+> bw_f_amyg <- paste0('/dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/', colData(rse_gene)$SAMPLE_ID[colData(rse_gene)$Region == 'AMYGDALA'], '.Forward.bw')
+> 
+> bw_f<- c(bw_f_dlpfc, bw_f_amyg)
+> 
+> compute_mean(bws = bw_f, outfile ='mean_forward',tempdir = 'forward_tmp')
+2019-01-26 09:48:09 creating file mean_forward.wig
+2019-01-26 09:48:10 command used: wiggletools write mean_forward.wig mean scale 1.94258099487977 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A1_ribo.Forward.bw scale 1.95167354452589 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A2_ribo.Forward.bw scale 1.93536705473386 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A3_ribo.Forward.bw scale 1.95031424592006 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A4_ribo.Forward.bw scale 1.94270422002683 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B1_ribo.Forward.bw scale 1.94620437530984 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B2_ribo.Forward.bw scale 1.95148714039096 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B3_ribo.Forward.bw scale 1.95893528150534 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B4_ribo.Forward.bw scale 1.9401668256379 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F1_ribo.Forward.bw scale 1.96347392112212 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F2_ribo.Forward.bw scale 1.88819617611054 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F3_ribo.Forward.bw scale 1.93809772807819 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F4_ribo.Forward.bw scale 1.94566312401463 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C1_ribo.Forward.bw scale 1.96265236096772 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C2_ribo.Forward.bw scale 1.94377176890161 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C3_ribo.Forward.bw scale 1.94987608061979 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C4_ribo.Forward.bw scale 1.9441139111972 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D1_ribo.Forward.bw scale 1.93784767357479 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D2_ribo.Forward.bw scale 1.9669080276792 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D3_ribo.Forward.bw scale 1.94757642045508 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D4_ribo.Forward.bw scale 1.93221379298597 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15668_HJ7YKBBXX.Forward.bw scale 1.92959161458415 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15669_HJ7YKBBXX.Forward.bw scale 1.92729754210789 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15670_HJ7YKBBXX.Forward.bw scale 1.8977109341522 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15671_HJ7YKBBXX.Forward.bw scale 1.94814223020668 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15672_HJ7YKBBXX.Forward.bw scale 1.94816694505981 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15673_HJ7YKBBXX.Forward.bw scale 1.90192258962243 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15674_HJ7YKBBXX.Forward.bw scale 1.89305183584804 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15675_HJ7YKBBXX.Forward.bw scale 1.95021335781522 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15676_HJ7YKBBXX.Forward.bw scale 1.94922259038547 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15677_HJ7YKBBXX.Forward.bw scale 1.95423511050443 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15678_HJ7YKBBXX.Forward.bw scale 1.89764557776186 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15679_HJ7YKBBXX.Forward.bw scale 1.92040756155002 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15680_HJ7YKBBXX.Forward.bw scale 1.94799111117372 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15681_HJ7YKBBXX.Forward.bw scale 1.93282550826347 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15682_HJ7YKBBXX.Forward.bw scale 1.9056736092904 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15683_HJ7YKBBXX.Forward.bw scale 1.94307186130041 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15700_HJ7YKBBXX.Forward.bw scale 1.92470166600573 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15701_HJ7YKBBXX.Forward.bw scale 1.89507320903546 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15702_HJ7YKBBXX.Forward.bw scale 1.80435295997077 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15703_HJ7YKBBXX.Forward.bw
+2019-01-26 10:49:05 creating file mean_forward.bw
+2019-01-26 11:23:32 mean BigWig was successfully created at mean_forward.bw
+ [1] "mean_forward.bw"             "mean_forward.wig"           
+ [3] ".createWig_2019-01-26.sh"    "forward_tmp/bw_sample1.auc" 
+ [5] "forward_tmp/bw_sample10.auc" "forward_tmp/bw_sample11.auc"
+ [7] "forward_tmp/bw_sample12.auc" "forward_tmp/bw_sample13.auc"
+ [9] "forward_tmp/bw_sample14.auc" "forward_tmp/bw_sample15.auc"
+[11] "forward_tmp/bw_sample16.auc" "forward_tmp/bw_sample17.auc"
+[13] "forward_tmp/bw_sample18.auc" "forward_tmp/bw_sample19.auc"
+[15] "forward_tmp/bw_sample2.auc"  "forward_tmp/bw_sample20.auc"
+[17] "forward_tmp/bw_sample21.auc" "forward_tmp/bw_sample22.auc"
+[19] "forward_tmp/bw_sample23.auc" "forward_tmp/bw_sample24.auc"
+[21] "forward_tmp/bw_sample25.auc" "forward_tmp/bw_sample26.auc"
+[23] "forward_tmp/bw_sample27.auc" "forward_tmp/bw_sample28.auc"
+[25] "forward_tmp/bw_sample29.auc" "forward_tmp/bw_sample3.auc" 
+[27] "forward_tmp/bw_sample30.auc" "forward_tmp/bw_sample31.auc"
+[29] "forward_tmp/bw_sample32.auc" "forward_tmp/bw_sample33.auc"
+[31] "forward_tmp/bw_sample34.auc" "forward_tmp/bw_sample35.auc"
+[33] "forward_tmp/bw_sample36.auc" "forward_tmp/bw_sample37.auc"
+[35] "forward_tmp/bw_sample38.auc" "forward_tmp/bw_sample39.auc"
+[37] "forward_tmp/bw_sample4.auc"  "forward_tmp/bw_sample40.auc"
+[39] "forward_tmp/bw_sample5.auc"  "forward_tmp/bw_sample6.auc" 
+[41] "forward_tmp/bw_sample7.auc"  "forward_tmp/bw_sample8.auc" 
+[43] "forward_tmp/bw_sample9.auc" 
+> 
+> 
+> 
+> ## Reverse
+> bw_r_dlpfc <- paste0('/dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/', colData(rse_gene)$SAMPLE_ID[colData(rse_gene)$Region == 'DLPFC'], '.Reverse.bw')
+> 
+> bw_r_amyg <- paste0('/dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/', colData(rse_gene)$SAMPLE_ID[colData(rse_gene)$Region == 'AMYGDALA'], '.Reverse.bw')
+> 
+> bw_r<- c(bw_r_dlpfc, bw_r_amyg)
+> 
+> compute_mean(bws = bw_r, outfile ='mean_reverse',tempdir = 'reverse_tmp')
+2019-01-26 12:08:58 creating file mean_reverse.wig
+2019-01-26 12:08:59 command used: wiggletools write mean_reverse.wig mean scale -2.05955431770355 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A1_ribo.Reverse.bw scale -2.04962982914925 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A2_ribo.Reverse.bw scale -2.07052000907927 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A3_ribo.Reverse.bw scale -2.05125752109449 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1385_A4_ribo.Reverse.bw scale -2.06230995146473 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B1_ribo.Reverse.bw scale -2.05591087320259 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B2_ribo.Reverse.bw scale -2.05278901117997 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B3_ribo.Reverse.bw scale -2.04435440331896 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br1729_B4_ribo.Reverse.bw scale -2.06221990380131 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F1_ribo.Reverse.bw scale -2.03928899575959 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F2_ribo.Reverse.bw scale -2.12595264711617 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F3_ribo.Reverse.bw scale -2.0648892437892 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2015_F4_ribo.Reverse.bw scale -2.05880138134762 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C1_ribo.Reverse.bw scale -2.03942592950731 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C2_ribo.Reverse.bw scale -2.06021726007177 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C3_ribo.Reverse.bw scale -2.05488466422302 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2020_C4_ribo.Reverse.bw scale -2.05844529880447 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D1_ribo.Reverse.bw scale -2.06771957018189 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D2_ribo.Reverse.bw scale -2.03657682844772 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D3_ribo.Reverse.bw scale -2.05446100760273 /dcl01/lieber/ajaffe/lab/degradation_experiments/DLPFC_RiboZero/Coverage/DLPFC_Br2074_D4_ribo.Reverse.bw scale -2.07407944387938 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15668_HJ7YKBBXX.Reverse.bw scale -2.07542111745781 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15669_HJ7YKBBXX.Reverse.bw scale -2.07932961471571 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15670_HJ7YKBBXX.Reverse.bw scale -2.11524911642724 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15671_HJ7YKBBXX.Reverse.bw scale -2.0534613525301 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15672_HJ7YKBBXX.Reverse.bw scale -2.0552891596485 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15673_HJ7YKBBXX.Reverse.bw scale -2.10895003978399 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15674_HJ7YKBBXX.Reverse.bw scale -2.11961651965769 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15675_HJ7YKBBXX.Reverse.bw scale -2.05367970826304 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15676_HJ7YKBBXX.Reverse.bw scale -2.0531227315901 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15677_HJ7YKBBXX.Reverse.bw scale -2.04681884568438 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15678_HJ7YKBBXX.Reverse.bw scale -2.11519474637959 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15679_HJ7YKBBXX.Reverse.bw scale -2.08635899797353 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15680_HJ7YKBBXX.Reverse.bw scale -2.05561265027751 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15681_HJ7YKBBXX.Reverse.bw scale -2.0706944374582 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15682_HJ7YKBBXX.Reverse.bw scale -2.10291849368411 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15683_HJ7YKBBXX.Reverse.bw scale -2.06178938044662 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15700_HJ7YKBBXX.Reverse.bw scale -2.08283418011048 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15701_HJ7YKBBXX.Reverse.bw scale -2.11561631298933 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15702_HJ7YKBBXX.Reverse.bw scale -2.24173601024568 /dcl01/lieber/ajaffe/lab/degradation_experiments/Amygdala_RiboZero/Coverage/R15703_HJ7YKBBXX.Reverse.bw
+2019-01-26 13:08:59 creating file mean_reverse.bw
+2019-01-26 13:41:52 mean BigWig was successfully created at mean_reverse.bw
+ [1] "mean_reverse.bw"             "mean_reverse.wig"           
+ [3] ".createWig_2019-01-26.sh"    "reverse_tmp/bw_sample1.auc" 
+ [5] "reverse_tmp/bw_sample10.auc" "reverse_tmp/bw_sample11.auc"
+ [7] "reverse_tmp/bw_sample12.auc" "reverse_tmp/bw_sample13.auc"
+ [9] "reverse_tmp/bw_sample14.auc" "reverse_tmp/bw_sample15.auc"
+[11] "reverse_tmp/bw_sample16.auc" "reverse_tmp/bw_sample17.auc"
+[13] "reverse_tmp/bw_sample18.auc" "reverse_tmp/bw_sample19.auc"
+[15] "reverse_tmp/bw_sample2.auc"  "reverse_tmp/bw_sample20.auc"
+[17] "reverse_tmp/bw_sample21.auc" "reverse_tmp/bw_sample22.auc"
+[19] "reverse_tmp/bw_sample23.auc" "reverse_tmp/bw_sample24.auc"
+[21] "reverse_tmp/bw_sample25.auc" "reverse_tmp/bw_sample26.auc"
+[23] "reverse_tmp/bw_sample27.auc" "reverse_tmp/bw_sample28.auc"
+[25] "reverse_tmp/bw_sample29.auc" "reverse_tmp/bw_sample3.auc" 
+[27] "reverse_tmp/bw_sample30.auc" "reverse_tmp/bw_sample31.auc"
+[29] "reverse_tmp/bw_sample32.auc" "reverse_tmp/bw_sample33.auc"
+[31] "reverse_tmp/bw_sample34.auc" "reverse_tmp/bw_sample35.auc"
+[33] "reverse_tmp/bw_sample36.auc" "reverse_tmp/bw_sample37.auc"
+[35] "reverse_tmp/bw_sample38.auc" "reverse_tmp/bw_sample39.auc"
+[37] "reverse_tmp/bw_sample4.auc"  "reverse_tmp/bw_sample40.auc"
+[39] "reverse_tmp/bw_sample5.auc"  "reverse_tmp/bw_sample6.auc" 
+[41] "reverse_tmp/bw_sample7.auc"  "reverse_tmp/bw_sample8.auc" 
+[43] "reverse_tmp/bw_sample9.auc" 
+> 
+> 
+> 
+> meanBWs = paste0("/dcl02/lieber/ptsd/RNAseq/qsva/dlpfc_amygdala/mean_",c("forward","reverse"), ".bw")
+> names(meanBWs) = c("Forward","Reverse")
+> stopifnot(all(file.exists(meanBWs)))
+> meanList = lapply(meanBWs, function(x) {
++     message(paste(Sys.time(), 'importing', x))
++     import(x)
++ })
+2019-01-26 13:41:52 importing /dcl02/lieber/ptsd/RNAseq/qsva/dlpfc_amygdala/mean_forward.bw
+2019-01-26 13:48:34 importing /dcl02/lieber/ptsd/RNAseq/qsva/dlpfc_amygdala/mean_reverse.bw
+> strand(meanList$Forward) = Rle("+")
+> strand(meanList$Reverse) = Rle("-")
+> 
+> ## make ERs
+> message(paste(Sys.time(), 'filtering mean BWs'))
+2019-01-26 13:54:35 filtering mean BWs
+> meanListFilter = GRangesList(lapply(meanList, function(x) x[abs(x$score) >= 5]))
+> reduceList = endoapply(meanListFilter, reduce,min.gapwidth=2)
+> 
+> ## at least 50 BP and on main chromosomes
+> erList = endoapply(reduceList, function(x)
++ 	x[width(x) >= 50 & seqnames(x) %in% chrInfo$chr])
+> 
+> ## Clean up (to reduce mem burden)
+> rm(meanList, meanListFilter, reduceList)
+> 
+> ##########################3
+> 
+> 
+> ## keep both regions
+> pd$RNum = ss(pd$SAMPLE_ID, "_")
+> 
+> 
+> bwFilesForward = c(bw_f_dlpfc, bw_f_amyg)
+> 
+> 
+> bwFilesReverse = c(bw_r_dlpfc, bw_r_amyg)
+> names(bwFilesForward) =names(bwFilesReverse) = c(colData(rse_gene)$SAMPLE_ID[colData(rse_gene)$Region == 'DLPFC'], colData(rse_gene)$SAMPLE_ID[colData(rse_gene)$Region == 'AMYGDALA'])
+> stopifnot(all(file.exists(c(bwFilesForward, bwFilesReverse))))
+> 
+> ## get sums
+> covForward = coverage_bwtool(bwFilesForward, erList$Forward,
++ 	sumsdir = "ers", bpparam = MulticoreParam(1) ,strand = "+")
+2019-01-26 13:56:24 switched sumsdir to ers_strand_positive
+2019-01-26 13:56:24 creating the BED file ers_strand_positive/coverage_bwtool_strand+_2019-01-26.bed
+2019-01-26 13:56:26 processing sample DLPFC_Br1385_A1_ribo
+2019-01-26 13:58:55 processing sample DLPFC_Br1385_A2_ribo
+2019-01-26 14:00:55 processing sample DLPFC_Br1385_A3_ribo
+2019-01-26 14:02:58 processing sample DLPFC_Br1385_A4_ribo
+2019-01-26 14:04:58 processing sample DLPFC_Br1729_B1_ribo
+2019-01-26 14:07:03 processing sample DLPFC_Br1729_B2_ribo
+2019-01-26 14:09:03 processing sample DLPFC_Br1729_B3_ribo
+2019-01-26 14:11:05 processing sample DLPFC_Br1729_B4_ribo
+2019-01-26 14:13:05 processing sample DLPFC_Br2015_F1_ribo
+2019-01-26 14:15:05 processing sample DLPFC_Br2015_F2_ribo
+2019-01-26 14:17:07 processing sample DLPFC_Br2015_F3_ribo
+2019-01-26 14:19:07 processing sample DLPFC_Br2015_F4_ribo
+2019-01-26 14:21:07 processing sample DLPFC_Br2020_C1_ribo
+2019-01-26 14:23:08 processing sample DLPFC_Br2020_C2_ribo
+2019-01-26 14:25:11 processing sample DLPFC_Br2020_C3_ribo
+2019-01-26 14:27:11 processing sample DLPFC_Br2020_C4_ribo
+2019-01-26 14:29:12 processing sample DLPFC_Br2074_D1_ribo
+2019-01-26 14:31:11 processing sample DLPFC_Br2074_D2_ribo
+2019-01-26 14:33:13 processing sample DLPFC_Br2074_D3_ribo
+2019-01-26 14:35:15 processing sample DLPFC_Br2074_D4_ribo
+2019-01-26 14:37:18 processing sample R15668_HJ7YKBBXX
+2019-01-26 14:39:18 processing sample R15669_HJ7YKBBXX
+2019-01-26 14:41:19 processing sample R15670_HJ7YKBBXX
+2019-01-26 14:43:18 processing sample R15671_HJ7YKBBXX
+2019-01-26 14:45:18 processing sample R15672_HJ7YKBBXX
+2019-01-26 14:47:20 processing sample R15673_HJ7YKBBXX
+2019-01-26 14:49:24 processing sample R15674_HJ7YKBBXX
+2019-01-26 14:51:20 processing sample R15675_HJ7YKBBXX
+2019-01-26 14:53:18 processing sample R15676_HJ7YKBBXX
+2019-01-26 14:55:21 processing sample R15677_HJ7YKBBXX
+2019-01-26 14:57:25 processing sample R15678_HJ7YKBBXX
+2019-01-26 14:59:28 processing sample R15679_HJ7YKBBXX
+2019-01-26 15:01:30 processing sample R15680_HJ7YKBBXX
+2019-01-26 15:03:31 processing sample R15681_HJ7YKBBXX
+2019-01-26 15:05:30 processing sample R15682_HJ7YKBBXX
+2019-01-26 15:07:29 processing sample R15683_HJ7YKBBXX
+2019-01-26 15:09:29 processing sample R15700_HJ7YKBBXX
+2019-01-26 15:11:31 processing sample R15701_HJ7YKBBXX
+2019-01-26 15:13:35 processing sample R15702_HJ7YKBBXX
+2019-01-26 15:15:38 processing sample R15703_HJ7YKBBXX
+> covReverse = coverage_bwtool(bwFilesReverse, erList$Reverse,
++ 	sumsdir = "ers", bpparam = MulticoreParam(1), strand="-")
+2019-01-26 15:17:36 switched sumsdir to ers_strand_minus
+2019-01-26 15:17:37 creating the BED file ers_strand_minus/coverage_bwtool_strand-_2019-01-26.bed
+2019-01-26 15:17:40 processing sample DLPFC_Br1385_A1_ribo
+2019-01-26 15:19:51 processing sample DLPFC_Br1385_A2_ribo
+2019-01-26 15:21:57 processing sample DLPFC_Br1385_A3_ribo
+2019-01-26 15:24:07 processing sample DLPFC_Br1385_A4_ribo
+2019-01-26 15:26:12 processing sample DLPFC_Br1729_B1_ribo
+2019-01-26 15:28:23 processing sample DLPFC_Br1729_B2_ribo
+2019-01-26 15:30:31 processing sample DLPFC_Br1729_B3_ribo
+2019-01-26 15:32:38 processing sample DLPFC_Br1729_B4_ribo
+2019-01-26 15:34:44 processing sample DLPFC_Br2015_F1_ribo
+2019-01-26 15:36:50 processing sample DLPFC_Br2015_F2_ribo
+2019-01-26 15:38:58 processing sample DLPFC_Br2015_F3_ribo
+2019-01-26 15:41:03 processing sample DLPFC_Br2015_F4_ribo
+2019-01-26 15:43:10 processing sample DLPFC_Br2020_C1_ribo
+2019-01-26 15:45:18 processing sample DLPFC_Br2020_C2_ribo
+2019-01-26 15:47:26 processing sample DLPFC_Br2020_C3_ribo
+2019-01-26 15:49:34 processing sample DLPFC_Br2020_C4_ribo
+2019-01-26 15:51:42 processing sample DLPFC_Br2074_D1_ribo
+2019-01-26 15:53:50 processing sample DLPFC_Br2074_D2_ribo
+2019-01-26 15:55:59 processing sample DLPFC_Br2074_D3_ribo
+2019-01-26 15:58:08 processing sample DLPFC_Br2074_D4_ribo
+2019-01-26 16:00:16 processing sample R15668_HJ7YKBBXX
+2019-01-26 16:02:22 processing sample R15669_HJ7YKBBXX
+2019-01-26 16:04:28 processing sample R15670_HJ7YKBBXX
+2019-01-26 16:06:33 processing sample R15671_HJ7YKBBXX
+2019-01-26 16:08:39 processing sample R15672_HJ7YKBBXX
+2019-01-26 16:10:46 processing sample R15673_HJ7YKBBXX
+2019-01-26 16:12:54 processing sample R15674_HJ7YKBBXX
+2019-01-26 16:14:56 processing sample R15675_HJ7YKBBXX
+2019-01-26 16:17:00 processing sample R15676_HJ7YKBBXX
+2019-01-26 16:19:09 processing sample R15677_HJ7YKBBXX
+2019-01-26 16:21:18 processing sample R15678_HJ7YKBBXX
+2019-01-26 16:23:30 processing sample R15679_HJ7YKBBXX
+2019-01-26 16:25:38 processing sample R15680_HJ7YKBBXX
+2019-01-26 16:27:43 processing sample R15681_HJ7YKBBXX
+2019-01-26 16:29:50 processing sample R15682_HJ7YKBBXX
+2019-01-26 16:31:55 processing sample R15683_HJ7YKBBXX
+2019-01-26 16:34:02 processing sample R15700_HJ7YKBBXX
+2019-01-26 16:36:09 processing sample R15701_HJ7YKBBXX
+2019-01-26 16:38:19 processing sample R15702_HJ7YKBBXX
+2019-01-26 16:40:28 processing sample R15703_HJ7YKBBXX
+> 
+> covForward$bigwig_path = NULL
+> covForward$bigwig_file = NULL
+> covReverse$bigwig_path = NULL
+> covReverse$bigwig_file = NULL
+> 
+> ## divide by number of reads
+> assays(covForward)$counts = assays(covForward)$counts/100 # divide by read length
+> assays(covForward)$counts = abs(assays(covForward)$counts)
+> assays(covReverse)$counts = assays(covReverse)$counts/100 # divide by read length
+> assays(covReverse)$counts = abs(assays(covReverse)$counts)
+> 
+> 
+> #Invert data so colnames = rownames
+> pd = pd[colnames(assays(covReverse)$counts),]
+> 
+> ## combine
+> covComb = SummarizedExperiment(
++ 	assays = list(counts = rbind(assays(covForward)$counts,
++ 		assays(covReverse)$counts)),
++ 	colData = pd, rowData = c(rowRanges(covForward), rowRanges(covReverse)))
+> rownames(covComb) = paste0(seqnames(covComb), ":",start(covComb), "-",
++ 	end(covComb), "(", strand(covComb), ")")
+> 
+> ###############
+> ## annotate ###
+> ###############
+> 
+> 
+> 
+> ## load genomic state
+> load('/dcl01/lieber/ajaffe/Emily/RNAseq-pipeline/Annotation/gs/gs_gencode_v25_hg38.Rdata')
+> gs = gs_gencode_v25_hg38$fullGenome
+> 
+> all <- GRanges(names(seqlengths(gs)), IRanges(start = 1, end = seqlengths(gs)), strand = '*')
+> new_intergenic <- lapply(c('+', '-'), function(str) {
++     onestrand <- gs[strand(gs) == str | strand(gs) == '*']
++     onestrand_simple <- onestrand
++     mcols(onestrand_simple) <- NULL
++     pieces <- disjoin(c(all, onestrand_simple), ignore.strand = TRUE)
++     ov <- countOverlaps(pieces, onestrand_simple, ignore.strand = TRUE)
++     new_intergenic <- pieces[ov == 0]
++     strand(new_intergenic) <- str
++     new_intergenic$theRegion <- paste0('intergenic', str)
++     new_intergenic$tx_id <- IntegerList(NA)
++     new_intergenic$tx_name <- CharacterList(NA)
++     new_intergenic$gene <- IntegerList(NA)
++     return(new_intergenic)
++ })
+> gs_stranded <- c(gs, unlist(GRangesList(new_intergenic)))
+> 
+> ensemblAnno = annotateRegions(rowRanges(covComb),gs_stranded,ignore.strand=FALSE,minoverlap=1)
+2019-01-26 16:42:51 annotateRegions: counting
+2019-01-26 16:42:55 annotateRegions: annotating
+> countTable = ensemblAnno$countTable
+> countTable[,2] = rowSums(countTable[,2:4])
+> countTable = countTable[,c(1,2,5)]
+> 
+> ## gene annotation overlaps
+> geneMapGR = rowRanges(rse_gene)
+> dA = distanceToNearest(rowRanges(covComb), geneMapGR)
+> rowRanges(covComb)$nearestSymbol = geneMapGR$Symbol[subjectHits(dA)]
+> rowRanges(covComb)$nearestID = names(geneMapGR)[subjectHits(dA)]
+> rowRanges(covComb)$distToGene = mcols(dA)$distance
+> mcols(rowRanges(covComb)) = cbind(mcols(rowRanges(covComb)), countTable)
+> 
+> ## add additional annotation
+> rowRanges(covComb)$annoClass = NA
+> rowRanges(covComb)$annoClass[rowRanges(covComb)$exon > 0 &
++ 	rowRanges(covComb)$intron == 0 &
++ 	rowRanges(covComb)$intergenic == 0] = "strictExonic"
+> rowRanges(covComb)$annoClass[rowRanges(covComb)$exon == 0 &
++ 	rowRanges(covComb)$intron > 0 &
++ 	rowRanges(covComb)$intergenic == 0] = "strictIntronic"
+> rowRanges(covComb)$annoClass[rowRanges(covComb)$exon == 0 &
++ 	rowRanges(covComb)$intron == 0 &
++ 	rowRanges(covComb)$intergenic > 0] = "strictIntergenic"
+> rowRanges(covComb)$annoClass[rowRanges(covComb)$exon > 0 &
++ 	rowRanges(covComb)$intron > 0 &
++ 	rowRanges(covComb)$intergenic == 0] = "exonIntron"
+> rowRanges(covComb)$annoClass[rowRanges(covComb)$exon > 0 &
++ 	rowRanges(covComb)$intergenic > 0] = "extendUTR"
+> 
+> save(covComb, file = "rdas/expressedRegions_DLPFC_Plus_Amygdala_RiboZero_degradation_cut5_hg38_n40.rda")
+> 
+> ## main model
+> mod = model.matrix(~pd$DegradationTime +
++ 	pd$Region + factor(pd$BrNum))
+> ## Drop dummy var for last BrNum, otherwise the model is not well specified
+> fit = lmFit(log2(assays(covComb)$counts+1), mod[, -ncol(mod)])
+> eb = ebayes(fit)
+Warning message:
+'ebayes' is deprecated.
+Use 'eBayes' instead.
+See help("Deprecated") 
+> out = topTable(eBayes(fit),coef=2,n = nrow(covComb))
+> 
+> ## interaction model
+> modInt = model.matrix(~pd$DegradationTime*pd$Region +
++ 	factor(pd$BrNum))
+> fitInt = lmFit(log2(assays(covComb)$counts+1), modInt[, - (ncol(modInt) - 1)])
+> ebInt = ebayes(fitInt)
+Warning message:
+'ebayes' is deprecated.
+Use 'eBayes' instead.
+See help("Deprecated") 
+> outInt = topTable(eBayes(fitInt),coef=c(2, ncol(modInt) -1 ), n = nrow(covComb))
+> outInt = outInt[rownames(out),]
+> 
+> 
+> save(out, outInt, file = "rdas/DLPFC_Plus_Amygdala_RiboZero_ERlevel_degradationStats_forDEqual_hg38.rda")
+> 
+> sum(p.adjust(ebInt$p[, ncol(ebInt$p)],"fdr") < 0.05) # good
+[1] 88
+> sum(p.adjust(eb$p[, 2],"fdr") < 0.05)
+[1] 157224
+> sum(p.adjust(ebInt$p[, 2],"fdr") < 0.05)
+[1] 28143
+> 
+> pdf('make_ERs_stranded.pdf')
+> plot(outInt$F, out$t)
+> plot(-log10(ebInt$p[, 2]), -log10(ebInt$p[, ncol(ebInt$p)]))
+> dev.off()
+null device 
+          1 
+> 
+> table(p.adjust(ebInt$p[head(rownames(out), n = 1000), ncol(ebInt$p)],"fdr") < 0.05)
+
+FALSE  TRUE 
+  945    55 
+> 
+> 
+> ## write out
+> dir.create("bed", showWarnings = FALSE)
+> digBed =rowRanges(covComb)[head(rownames(out), n = 1000)]
+> export(digBed, con = "bed/DLPFC_Plus_Amygdala_RiboZero_degradation_top1000.bed")
+> 
+> #########################################
+> ## make degradation features for genes
+> dge = DGEList(counts = assays(rse_gene)$counts,
++ 	genes = rowData(rse_gene))
+> dge = calcNormFactors(dge)
+> 
+> ## mean-variance
+> vGene = voom(dge,mod[, -ncol(mod)],plot=FALSE)
+> fitGene = lmFit(vGene)
+> ebGene = ebayes(fitGene)
+Warning message:
+'ebayes' is deprecated.
+Use 'eBayes' instead.
+See help("Deprecated") 
+> degradeStats = topTable(eBayes(fitGene),coef=2,
++ 	p.value = 1,number=nrow(rse_gene))
+> degradeStats$gencodeTx = NULL
+> degradeStats$bonf = NA
+> degradeStats$bonf[degradeStats$AveExpr > -2] = p.adjust(degradeStats$P.Value[degradeStats$AveExpr > -2] , "bonf")
+> degradeStats = degradeStats[rownames(rse_gene),]
+> 
+> ## add interaction p-value
+> vGeneInt = voom(dge,modInt[, -(ncol(modInt) - 1)],plot=FALSE)
+> fitGeneInt = lmFit(vGeneInt)
+> degradeStatsInt = topTable(eBayes(fitGeneInt),coef = (ncol(modInt) - 1),
++ 	p.value = 1,number=nrow(rse_gene))
+> 
+> degradeStatsInt$bonf = NA
+> degradeStatsInt$bonf[degradeStatsInt$AveExpr > -2] = p.adjust(degradeStatsInt$P.Value[degradeStatsInt$AveExpr > -2] , "bonf")
+> degradeStatsInt = degradeStatsInt[rownames(rse_gene),]
+> 
+> save(degradeStats, degradeStatsInt, file = "rdas/DLPFC_Plus_Amygdala_RiboZero_geneLevel_degradationStats_forDEqual_hg38.rda")
+> 
+> 
+> d_stats <- function(region) {
++     d <- dge[, rse_gene$Region == region]
++     m <- with(pd[rse_gene$Region == region, ], model.matrix( ~ DegradationTime + factor(BrNum)))
++ 
++     v = voom(d, m,plot=FALSE)
++     f = lmFit(v)
++     eb = eBayes(f)
++     dS = topTable(eBayes(f),coef=2,
++     	p.value = 1,number=nrow(rse_gene))
++     dS$gencodeTx = NULL
++     dS$bonf = NA
++     dS$bonf[dS$AveExpr > -2] = p.adjust(dS$P.Value[dS$AveExpr > -2] , "bonf")
++     dS = dS[rownames(rse_gene),]
++     return(dS)
++ }
+> 
+> degradeStats_DLPFC <- d_stats('DLPFC')
+> degradeStats_Amygdala <- d_stats('AMYGDALA')
+> 
+> save(degradeStats_DLPFC, degradeStats_Amygdala, file = 'rdas/DLPFC_Amygdala_degradationStats_hg38.rda')
+> 
+> stopifnot(identical(rownames(degradeStats), rownames(degradeStatsInt)))
+> stopifnot(identical(rownames(degradeStats), rownames(degradeStats_DLPFC)))
+> stopifnot(identical(rownames(degradeStats), rownames(degradeStats_Amygdala)))
+> 
+> Sys.time()
+[1] "2019-01-26 16:46:09 EST"
+> proc.time()
+     user    system   elapsed 
+33777.128  2305.901 27964.392 
+> options(width = 120)
+> session_info()
+─ Session info ───────────────────────────────────────────────────────────────────────────────────────────────────────
+ setting  value                                                 
+ version  R version 3.5.1 Patched (2018-10-29 r75535)           
+ os       Red Hat Enterprise Linux Server release 6.9 (Santiago)
+ system   x86_64, linux-gnu                                     
+ ui       X11                                                   
+ language (EN)                                                  
+ collate  en_US.UTF-8                                           
+ ctype    en_US.UTF-8                                           
+ tz       US/Eastern                                            
+ date     2019-01-26                                            
+
+─ Packages ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+ package              * version   date       lib source                                         
+ acepack                1.4.1     2016-10-29 [2] CRAN (R 3.5.0)                                 
+ AnnotationDbi          1.44.0    2018-10-30 [2] Bioconductor                                   
+ assertthat             0.2.0     2017-04-11 [2] CRAN (R 3.5.0)                                 
+ backports              1.1.3     2018-12-14 [2] CRAN (R 3.5.1)                                 
+ base64enc              0.1-3     2015-07-28 [2] CRAN (R 3.5.0)                                 
+ bibtex                 0.4.2     2017-06-30 [2] CRAN (R 3.5.1)                                 
+ bindr                  0.1.1     2018-03-13 [2] CRAN (R 3.5.0)                                 
+ bindrcpp               0.2.2     2018-03-29 [2] CRAN (R 3.5.0)                                 
+ Biobase              * 2.42.0    2018-10-30 [2] Bioconductor                                   
+ BiocGenerics         * 0.28.0    2018-10-30 [2] Bioconductor                                   
+ BiocParallel         * 1.16.5    2019-01-04 [2] Bioconductor                                   
+ biomaRt              * 2.38.0    2018-10-30 [2] Bioconductor                                   
+ Biostrings             2.50.1    2018-11-06 [2] Bioconductor                                   
+ bit                    1.1-14    2018-05-29 [2] CRAN (R 3.5.0)                                 
+ bit64                  0.9-7     2017-05-08 [2] CRAN (R 3.5.0)                                 
+ bitops                 1.0-6     2013-08-17 [2] CRAN (R 3.5.0)                                 
+ blob                   1.1.1     2018-03-25 [2] CRAN (R 3.5.0)                                 
+ BSgenome               1.50.0    2018-10-30 [2] Bioconductor                                   
+ bumphunter             1.24.5    2018-12-01 [2] Bioconductor                                   
+ callr                  3.1.1     2018-12-21 [2] CRAN (R 3.5.1)                                 
+ cellranger             1.1.0     2016-07-27 [2] CRAN (R 3.5.0)                                 
+ checkmate              1.9.1     2019-01-15 [2] CRAN (R 3.5.1)                                 
+ cli                    1.0.1     2018-09-25 [2] CRAN (R 3.5.1)                                 
+ cluster                2.0.7-1   2018-04-13 [3] CRAN (R 3.5.1)                                 
+ codetools              0.2-15    2016-10-05 [3] CRAN (R 3.5.1)                                 
+ colorspace             1.4-0     2019-01-13 [2] CRAN (R 3.5.1)                                 
+ crayon                 1.3.4     2017-09-16 [2] CRAN (R 3.5.0)                                 
+ data.table             1.12.0    2019-01-13 [2] CRAN (R 3.5.1)                                 
+ DBI                    1.0.0     2018-05-02 [2] CRAN (R 3.5.0)                                 
+ DelayedArray         * 0.8.0     2018-10-30 [2] Bioconductor                                   
+ derfinder            * 1.16.1    2018-12-03 [2] Bioconductor                                   
+ derfinderHelper        1.16.1    2018-12-03 [2] Bioconductor                                   
+ desc                   1.2.0     2018-05-01 [2] CRAN (R 3.5.1)                                 
+ devtools             * 2.0.1     2018-10-26 [2] CRAN (R 3.5.1)                                 
+ digest                 0.6.18    2018-10-10 [2] CRAN (R 3.5.1)                                 
+ doRNG                  1.7.1     2018-06-22 [2] CRAN (R 3.5.1)                                 
+ downloader             0.4       2015-07-09 [2] CRAN (R 3.5.0)                                 
+ dplyr                  0.7.8     2018-11-10 [2] CRAN (R 3.5.1)                                 
+ edgeR                * 3.24.3    2019-01-02 [2] Bioconductor                                   
+ foreach                1.4.4     2017-12-12 [2] CRAN (R 3.5.0)                                 
+ foreign                0.8-71    2018-07-20 [3] CRAN (R 3.5.1)                                 
+ Formula                1.2-3     2018-05-03 [2] CRAN (R 3.5.0)                                 
+ fs                     1.2.6     2018-08-23 [2] CRAN (R 3.5.1)                                 
+ GenomeInfoDb         * 1.18.1    2018-11-12 [2] Bioconductor                                   
+ GenomeInfoDbData       1.2.0     2018-11-02 [2] Bioconductor                                   
+ GenomicAlignments      1.18.1    2019-01-04 [2] Bioconductor                                   
+ GenomicFeatures        1.34.1    2018-11-03 [2] Bioconductor                                   
+ GenomicFiles           1.18.0    2018-10-30 [2] Bioconductor                                   
+ GenomicRanges        * 1.34.0    2018-10-30 [2] Bioconductor                                   
+ GEOquery               2.50.4    2018-12-13 [2] Bioconductor                                   
+ ggplot2                3.1.0     2018-10-25 [2] CRAN (R 3.5.1)                                 
+ glue                   1.3.0     2018-07-17 [2] CRAN (R 3.5.1)                                 
+ gridExtra              2.3       2017-09-09 [2] CRAN (R 3.5.0)                                 
+ gtable                 0.2.0     2016-02-26 [2] CRAN (R 3.5.0)                                 
+ Hmisc                  4.1-1     2018-01-03 [2] CRAN (R 3.5.0)                                 
+ hms                    0.4.2     2018-03-10 [2] CRAN (R 3.5.0)                                 
+ htmlTable              1.13.1    2019-01-07 [2] CRAN (R 3.5.1)                                 
+ htmltools              0.3.6     2017-04-28 [2] CRAN (R 3.5.0)                                 
+ htmlwidgets            1.3       2018-09-30 [2] CRAN (R 3.5.1)                                 
+ httr                   1.4.0     2018-12-11 [2] CRAN (R 3.5.1)                                 
+ IRanges              * 2.16.0    2018-10-30 [2] Bioconductor                                   
+ iterators              1.0.10    2018-07-13 [2] CRAN (R 3.5.1)                                 
+ jaffelab             * 0.99.22   2018-07-23 [1] Github (LieberInstitute/jaffelab@a9e7377)      
+ jsonlite               1.6       2018-12-07 [2] CRAN (R 3.5.1)                                 
+ knitr                  1.21      2018-12-10 [2] CRAN (R 3.5.1)                                 
+ lattice                0.20-38   2018-11-04 [3] CRAN (R 3.5.1)                                 
+ latticeExtra           0.6-28    2016-02-09 [2] CRAN (R 3.5.0)                                 
+ lazyeval               0.2.1     2017-10-29 [2] CRAN (R 3.5.0)                                 
+ limma                * 3.38.3    2018-12-02 [2] Bioconductor                                   
+ locfit                 1.5-9.1   2013-04-20 [2] CRAN (R 3.5.0)                                 
+ magrittr               1.5       2014-11-22 [2] CRAN (R 3.5.0)                                 
+ Matrix                 1.2-15    2018-11-01 [3] CRAN (R 3.5.1)                                 
+ matrixStats          * 0.54.0    2018-07-23 [2] CRAN (R 3.5.1)                                 
+ memoise                1.1.0     2017-04-21 [2] CRAN (R 3.5.0)                                 
+ munsell                0.5.0     2018-06-12 [2] CRAN (R 3.5.0)                                 
+ nnet                   7.3-12    2016-02-02 [3] CRAN (R 3.5.1)                                 
+ pillar                 1.3.1     2018-12-15 [2] CRAN (R 3.5.1)                                 
+ pkgbuild               1.0.2     2018-10-16 [2] CRAN (R 3.5.1)                                 
+ pkgconfig              2.0.2     2018-08-16 [2] CRAN (R 3.5.1)                                 
+ pkgload                1.0.2     2018-10-29 [2] CRAN (R 3.5.1)                                 
+ pkgmaker               0.27      2018-05-25 [2] CRAN (R 3.5.0)                                 
+ plyr                   1.8.4     2016-06-08 [2] CRAN (R 3.5.0)                                 
+ prettyunits            1.0.2     2015-07-13 [2] CRAN (R 3.5.0)                                 
+ processx               3.2.1     2018-12-05 [2] CRAN (R 3.5.1)                                 
+ progress               1.2.0     2018-06-14 [2] CRAN (R 3.5.1)                                 
+ ps                     1.3.0     2018-12-21 [2] CRAN (R 3.5.1)                                 
+ purrr                  0.2.5     2018-05-29 [2] CRAN (R 3.5.0)                                 
+ qvalue                 2.14.1    2019-01-10 [2] Bioconductor                                   
+ R.methodsS3            1.7.1     2016-02-16 [2] CRAN (R 3.5.0)                                 
+ R.oo                   1.22.0    2018-04-22 [2] CRAN (R 3.5.0)                                 
+ R.utils                2.7.0     2018-08-27 [2] CRAN (R 3.5.1)                                 
+ R6                     2.3.0     2018-10-04 [2] CRAN (R 3.5.1)                                 
+ rafalib              * 1.0.0     2015-08-09 [1] CRAN (R 3.5.0)                                 
+ RColorBrewer           1.1-2     2014-12-07 [2] CRAN (R 3.5.0)                                 
+ Rcpp                   1.0.0     2018-11-07 [2] CRAN (R 3.5.1)                                 
+ RCurl                  1.95-4.11 2018-07-15 [2] CRAN (R 3.5.1)                                 
+ readr                  1.3.0     2018-12-11 [2] CRAN (R 3.5.1)                                 
+ readxl               * 1.2.0     2018-12-19 [2] CRAN (R 3.5.1)                                 
+ recount              * 1.8.1     2018-12-03 [1] Bioconductor                                   
+ recount.bwtool       * 0.99.29   2019-01-16 [1] Github (LieberInstitute/recount.bwtool@e6df598)
+ registry               0.5       2017-12-03 [2] CRAN (R 3.5.0)                                 
+ remotes                2.0.2     2018-10-30 [2] CRAN (R 3.5.1)                                 
+ rentrez                1.2.1     2018-03-05 [2] CRAN (R 3.5.0)                                 
+ reshape2               1.4.3     2017-12-11 [2] CRAN (R 3.5.0)                                 
+ rlang                  0.3.1     2019-01-08 [2] CRAN (R 3.5.1)                                 
+ rngtools               1.3.1     2018-05-15 [2] CRAN (R 3.5.0)                                 
+ rpart                  4.1-13    2018-02-23 [3] CRAN (R 3.5.1)                                 
+ rprojroot              1.3-2     2018-01-03 [2] CRAN (R 3.5.0)                                 
+ Rsamtools              1.34.0    2018-10-30 [2] Bioconductor                                   
+ RSQLite                2.1.1     2018-05-06 [2] CRAN (R 3.5.0)                                 
+ rstudioapi             0.9.0     2019-01-09 [2] CRAN (R 3.5.1)                                 
+ rtracklayer          * 1.42.1    2018-11-22 [2] Bioconductor                                   
+ S4Vectors            * 0.20.1    2018-11-09 [2] Bioconductor                                   
+ scales                 1.0.0     2018-08-09 [2] CRAN (R 3.5.1)                                 
+ segmented              0.5-3.0   2017-11-30 [2] CRAN (R 3.5.0)                                 
+ sessioninfo            1.1.1     2018-11-05 [2] CRAN (R 3.5.1)                                 
+ stringi                1.2.4     2018-07-20 [2] CRAN (R 3.5.1)                                 
+ stringr                1.3.1     2018-05-10 [2] CRAN (R 3.5.1)                                 
+ SummarizedExperiment * 1.12.0    2018-10-30 [2] Bioconductor                                   
+ survival               2.43-3    2018-11-26 [3] CRAN (R 3.5.1)                                 
+ tibble                 2.0.0     2019-01-04 [2] CRAN (R 3.5.1)                                 
+ tidyr                  0.8.2     2018-10-28 [2] CRAN (R 3.5.1)                                 
+ tidyselect             0.2.5     2018-10-11 [2] CRAN (R 3.5.1)                                 
+ usethis              * 1.4.0     2018-08-14 [2] CRAN (R 3.5.1)                                 
+ VariantAnnotation      1.28.8    2019-01-10 [2] Bioconductor                                   
+ withr                  2.1.2     2018-03-15 [2] CRAN (R 3.5.0)                                 
+ xfun                   0.4       2018-10-23 [2] CRAN (R 3.5.1)                                 
+ XML                    3.98-1.16 2018-08-19 [2] CRAN (R 3.5.1)                                 
+ xml2                   1.2.0     2018-01-24 [2] CRAN (R 3.5.0)                                 
+ xtable                 1.8-3     2018-08-29 [2] CRAN (R 3.5.1)                                 
+ XVector                0.22.0    2018-10-30 [2] Bioconductor                                   
+ zlibbioc               1.28.0    2018-10-30 [2] Bioconductor                                   
+
+[1] /users/bbarry/R/x86_64-pc-linux-gnu-library/3.5
+[2] /jhpce/shared/jhpce/core/conda/miniconda-3/envs/svnR-3.5.x/R/3.5.x/lib64/R/site-library
+[3] /jhpce/shared/jhpce/core/conda/miniconda-3/envs/svnR-3.5.x/R/3.5.x/lib64/R/library
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/qsva/dlpfc_amygdala/')
+> library('SummarizedExperiment')
+> library('rtracklayer')
+> library('recount.bwtool')
+> library('BiocParallel')
+> library('devtools')
+> 
+> ## For file paths to PTSD preprocessed bigwigs
+> load('/dcl02/lieber/ptsd/RNAseq/count_data/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> rse_gene <- rse_gene[, rse_gene$Region %in% c('DLPFC', 'BasoAmyg', 'MedialAmyg', 'dACC')]
+> 
+> ## Degradation regions
+> regs <- import('/dcl02/lieber/ptsd/RNAseq/qsva/dlpfc_amygdala/bed/DLPFC_Plus_Amygdala_RiboZero_degradation_top1000.bed')
+> 
+> 
+> region <- rep(rse_gene$Region, elementNROWS(rse_gene$SAMPLE_ID))
+> 
+> ##Code for previous processing of DLPFC and hippocampus - Commented out code not used for processing of DLPFC and amygdala
+> 
+> #region_dir <- ifelse(region == 'DLPFC', 'DLPFC', 'Hippo')
+> #region_path <- paste0('/dcl01/lieber/ajaffe/lab/brainseq_phase2/preprocessed_data/', region_dir, '_RiboZero/Coverage/')
+> 
+> summary(rse_gene$RNum == rse_gene$SAMPLE_ID)
+   Mode    TRUE 
+logical    1285 
+> 
+> region_path <- '/dcl02/lieber/ptsd/RNAseq/preprocessed_data/Coverage/'
+> 
+> forwardBw = paste0(region_path, unlist(rse_gene$SAMPLE_ID), ".Forward.bw")
+> reverseBw = paste0(region_path, unlist(rse_gene$SAMPLE_ID), ".Reverse.bw")
+> 
+> stopifnot(all(file.exists(c(forwardBw,reverseBw))))
+> 
+> names(forwardBw) = names(reverseBw) = unlist(rse_gene$SAMPLE_ID)
+> 
+> 
+> covForward = coverage_bwtool(forwardBw, regs, strand = "+", 
++ 	sumsdir = "degradation", bpparam = MulticoreParam(8))
+2019-01-26 16:59:14 switched sumsdir to degradation_strand_positive
+2019-01-26 16:59:14 creating the BED file degradation_strand_positive/coverage_bwtool_strand+_2019-01-26.bed
+2019-01-26 16:59:16 processing sample R16973
+2019-01-26 16:59:47 processing sample R16954
+2019-01-26 17:00:25 processing sample R16974
+2019-01-26 17:01:05 processing sample R16953
+2019-01-26 17:01:46 processing sample R17012
+2019-01-26 17:02:23 processing sample R17014
+2019-01-26 17:03:00 processing sample R15870
+2019-01-26 17:03:39 processing sample R17013
+2019-01-26 17:04:09 processing sample R16983
+2019-01-26 17:04:37 processing sample R16986
+2019-01-26 17:05:12 processing sample R16984
+2019-01-26 17:05:45 processing sample R16985
+2019-01-26 17:06:18 processing sample R16979
+2019-01-26 17:06:55 processing sample R16982
+2019-01-26 17:07:36 processing sample R16980
+2019-01-26 17:08:07 processing sample R16981
+2019-01-26 17:08:38 processing sample R16990
+2019-01-26 17:09:13 processing sample R16993
+2019-01-26 17:09:45 processing sample R16991
+2019-01-26 17:10:26 processing sample R16992
+2019-01-26 17:11:04 processing sample R17004
+2019-01-26 17:11:30 processing sample R17007
+2019-01-26 17:12:03 processing sample R17005
+2019-01-26 17:12:33 processing sample R17006
+2019-01-26 17:13:02 processing sample R17023
+2019-01-26 17:13:28 processing sample R17025
+2019-01-26 17:14:06 processing sample R16183
+2019-01-26 17:14:39 processing sample R17024
+2019-01-26 17:15:14 processing sample R17026
+2019-01-26 17:15:52 processing sample R17029
+2019-01-26 17:16:30 processing sample R17027
+2019-01-26 17:17:08 processing sample R17028
+2019-01-26 17:17:42 processing sample R16994
+2019-01-26 17:18:17 processing sample R16997
+2019-01-26 17:18:52 processing sample R16995
+2019-01-26 17:19:19 processing sample R16996
+2019-01-26 17:19:51 processing sample R17037
+2019-01-26 17:20:29 processing sample R17040
+2019-01-26 17:20:58 processing sample R17038
+2019-01-26 17:21:32 processing sample R17039
+2019-01-26 17:22:06 processing sample R17048
+2019-01-26 17:22:39 processing sample R17051
+2019-01-26 17:23:15 processing sample R17049
+2019-01-26 17:23:37 processing sample R17050
+2019-01-26 17:23:57 processing sample R17008
+2019-01-26 17:24:29 processing sample R17011
+2019-01-26 17:25:12 processing sample R17009
+2019-01-26 17:25:46 processing sample R17010
+2019-01-26 17:26:14 processing sample R17059
+2019-01-26 17:26:47 processing sample R17062
+2019-01-26 17:27:20 processing sample R17060
+2019-01-26 17:27:52 processing sample R17061
+2019-01-26 17:28:31 processing sample R17019
+2019-01-26 17:29:00 processing sample R17022
+2019-01-26 17:29:35 processing sample R17020
+2019-01-26 17:30:14 processing sample R17021
+2019-01-26 17:30:46 processing sample R17030
+2019-01-26 17:31:20 processing sample R17033
+2019-01-26 17:31:55 processing sample R17031
+2019-01-26 17:32:30 processing sample R17032
+2019-01-26 17:33:13 processing sample R17041
+2019-01-26 17:33:55 processing sample R17044
+2019-01-26 17:34:23 processing sample R17042
+2019-01-26 17:34:57 processing sample R17043
+2019-01-26 17:35:38 processing sample R17034
+2019-01-26 17:36:10 processing sample R17036
+2019-01-26 17:36:38 processing sample R16184
+2019-01-26 17:37:09 processing sample R17292
+2019-01-26 17:37:42 processing sample R17070
+2019-01-26 17:38:21 processing sample R17073
+2019-01-26 17:38:53 processing sample R17071
+2019-01-26 17:39:33 processing sample R17072
+2019-01-26 17:40:04 processing sample R17045
+2019-01-26 17:40:40 processing sample R17047
+2019-01-26 17:41:09 processing sample R16185
+2019-01-26 17:41:49 processing sample R17293
+2019-01-26 17:42:18 processing sample R17081
+2019-01-26 17:42:53 processing sample R17084
+2019-01-26 17:43:25 processing sample R17082
+2019-01-26 17:44:09 processing sample R17083
+2019-01-26 17:44:46 processing sample R17056
+2019-01-26 17:45:27 processing sample R17058
+2019-01-26 17:46:02 processing sample R16186
+2019-01-26 17:46:43 processing sample R17057
+2019-01-26 17:47:26 processing sample R17067
+2019-01-26 17:48:05 processing sample R17069
+2019-01-26 17:48:41 processing sample R16187
+2019-01-26 17:49:23 processing sample R17068
+2019-01-26 17:49:57 processing sample R17078
+2019-01-26 17:50:34 processing sample R17080
+2019-01-26 17:51:13 processing sample R16188
+2019-01-26 17:51:53 processing sample R17079
+2019-01-26 17:52:28 processing sample R17092
+2019-01-26 17:53:02 processing sample R17087
+2019-01-26 17:53:34 processing sample R17093
+2019-01-26 17:54:07 processing sample R17094
+2019-01-26 17:54:51 processing sample R17103
+2019-01-26 17:55:23 processing sample R17106
+2019-01-26 17:56:03 processing sample R17104
+2019-01-26 17:56:38 processing sample R17105
+2019-01-26 17:57:09 processing sample R17089
+2019-01-26 17:57:43 processing sample R17091
+2019-01-26 17:58:25 processing sample R16189
+2019-01-26 17:59:04 processing sample R17090
+2019-01-26 17:59:35 processing sample R17100
+2019-01-26 18:00:11 processing sample R17102
+2019-01-26 18:00:42 processing sample R16190
+2019-01-26 18:01:28 processing sample R17101
+2019-01-26 18:02:07 processing sample R17052
+2019-01-26 18:02:41 processing sample R17055
+2019-01-26 18:03:10 processing sample R17053
+2019-01-26 18:03:50 processing sample R17054
+2019-01-26 18:04:24 processing sample R17125
+2019-01-26 18:05:03 processing sample R17128
+2019-01-26 18:05:41 processing sample R17126
+2019-01-26 18:06:20 processing sample R17127
+2019-01-26 18:06:56 processing sample R17063
+2019-01-26 18:07:28 processing sample R17066
+2019-01-26 18:08:16 processing sample R17064
+2019-01-26 18:08:52 processing sample R17065
+2019-01-26 18:09:31 processing sample R17122
+2019-01-26 18:10:12 processing sample R17124
+2019-01-26 18:10:54 processing sample R16192
+2019-01-26 18:11:39 processing sample R17123
+2019-01-26 18:12:22 processing sample R17074
+2019-01-26 18:13:03 processing sample R17077
+2019-01-26 18:13:46 processing sample R17075
+2019-01-26 18:14:21 processing sample R17076
+2019-01-26 18:14:58 processing sample R17133
+2019-01-26 18:15:35 processing sample R17135
+2019-01-26 18:16:06 processing sample R16193
+2019-01-26 18:16:48 processing sample R17134
+2019-01-26 18:17:22 processing sample R17085
+2019-01-26 18:17:50 processing sample R17088
+2019-01-26 18:18:18 processing sample R17086
+2019-01-26 18:18:59 processing sample R17095
+2019-01-26 18:19:37 processing sample R17096
+2019-01-26 18:20:21 processing sample R17099
+2019-01-26 18:20:44 processing sample R17097
+2019-01-26 18:20:58 processing sample R17098
+2019-01-26 18:21:33 processing sample R17166
+2019-01-26 18:22:07 processing sample R17168
+2019-01-26 18:22:30 processing sample R16196
+2019-01-26 18:22:47 processing sample R17167
+2019-01-26 18:23:09 processing sample R17118
+2019-01-26 18:23:27 processing sample R17121
+2019-01-26 18:24:02 processing sample R17119
+2019-01-26 18:24:37 processing sample R17120
+2019-01-26 18:25:12 processing sample R17129
+2019-01-26 18:25:50 processing sample R17132
+2019-01-26 18:26:19 processing sample R17130
+2019-01-26 18:27:03 processing sample R17131
+2019-01-26 18:27:37 processing sample R17169
+2019-01-26 18:28:19 processing sample R17172
+2019-01-26 18:28:59 processing sample R17170
+2019-01-26 18:29:36 processing sample R17171
+2019-01-26 18:30:11 processing sample R17173
+2019-01-26 18:30:46 processing sample R17176
+2019-01-26 18:31:26 processing sample R17174
+2019-01-26 18:32:05 processing sample R17175
+2019-01-26 16:59:16 processing sample R16161
+2019-01-26 16:59:45 processing sample R16173
+2019-01-26 17:00:21 processing sample R15957
+2019-01-26 17:00:59 processing sample R15891
+2019-01-26 17:01:32 processing sample R15954
+2019-01-26 17:02:05 processing sample R15838
+2019-01-26 17:02:39 processing sample R15798
+2019-01-26 17:03:13 processing sample R16031
+2019-01-26 17:03:56 processing sample R16232
+2019-01-26 17:04:29 processing sample R16112
+2019-01-26 17:05:09 processing sample R16353
+2019-01-26 17:05:43 processing sample R15908
+2019-01-26 17:06:23 processing sample R16162
+2019-01-26 17:06:56 processing sample R16174
+2019-01-26 17:07:32 processing sample R15958
+2019-01-26 17:08:07 processing sample R15892
+2019-01-26 17:08:43 processing sample R16163
+2019-01-26 17:09:13 processing sample R16175
+2019-01-26 17:09:46 processing sample R15959
+2019-01-26 17:10:23 processing sample R15893
+2019-01-26 17:11:04 processing sample R16233
+2019-01-26 17:11:42 processing sample R16113
+2019-01-26 17:12:25 processing sample R16352
+2019-01-26 17:13:06 processing sample R15909
+2019-01-26 17:13:41 processing sample R16234
+2019-01-26 17:14:22 processing sample R16114
+2019-01-26 17:15:11 processing sample R16351
+2019-01-26 17:15:53 processing sample R15910
+2019-01-26 17:16:27 processing sample R16135
+2019-01-26 17:17:01 processing sample R15839
+2019-01-26 17:17:37 processing sample R15799
+2019-01-26 17:18:22 processing sample R16032
+2019-01-26 17:18:59 processing sample R16235
+2019-01-26 17:19:31 processing sample R16115
+2019-01-26 17:20:04 processing sample R16374
+2019-01-26 17:20:41 processing sample R15911
+2019-01-26 17:21:07 processing sample R16236
+2019-01-26 17:21:40 processing sample R16116
+2019-01-26 17:22:14 processing sample R16373
+2019-01-26 17:22:46 processing sample R15912
+2019-01-26 17:23:18 processing sample R16164
+2019-01-26 17:23:32 processing sample R16176
+2019-01-26 17:23:54 processing sample R15960
+2019-01-26 17:24:27 processing sample R15894
+2019-01-26 17:25:04 processing sample R16136
+2019-01-26 17:25:35 processing sample R15840
+2019-01-26 17:26:05 processing sample R15800
+2019-01-26 17:26:37 processing sample R16033
+2019-01-26 17:27:12 processing sample R16237
+2019-01-26 17:27:43 processing sample R16117
+2019-01-26 17:28:15 processing sample R16372
+2019-01-26 17:28:58 processing sample R15913
+2019-01-26 17:29:32 processing sample R16165
+2019-01-26 17:30:10 processing sample R16177
+2019-01-26 17:30:50 processing sample R15961
+2019-01-26 17:31:29 processing sample R15967
+2019-01-26 17:32:06 processing sample R16137
+2019-01-26 17:32:46 processing sample R15841
+2019-01-26 17:33:23 processing sample R15801
+2019-01-26 17:33:55 processing sample R16034
+2019-01-26 17:34:28 processing sample R16166
+2019-01-26 17:34:59 processing sample R16178
+2019-01-26 17:35:37 processing sample R15962
+2019-01-26 17:36:06 processing sample R15968
+2019-01-26 17:36:50 processing sample R16167
+2019-01-26 17:37:22 processing sample R16179
+2019-01-26 17:37:57 processing sample R15963
+2019-01-26 17:38:30 processing sample R16081
+2019-01-26 17:39:05 processing sample R16238
+2019-01-26 17:39:43 processing sample R16118
+2019-01-26 17:40:26 processing sample R16371
+2019-01-26 17:41:11 processing sample R15915
+2019-01-26 17:41:45 processing sample R16168
+2019-01-26 17:42:19 processing sample R16180
+2019-01-26 17:42:54 processing sample R15964
+2019-01-26 17:43:28 processing sample R15969
+2019-01-26 17:44:01 processing sample R16239
+2019-01-26 17:44:34 processing sample R16119
+2019-01-26 17:45:07 processing sample R16370
+2019-01-26 17:45:46 processing sample R15916
+2019-01-26 17:46:22 processing sample R16144
+2019-01-26 17:47:00 processing sample R15832
+2019-01-26 17:47:33 processing sample R15802
+2019-01-26 17:48:12 processing sample R16035
+2019-01-26 17:48:52 processing sample R16240
+2019-01-26 17:49:24 processing sample R16120
+2019-01-26 17:49:56 processing sample R16369
+2019-01-26 17:50:37 processing sample R15917
+2019-01-26 17:51:15 processing sample R16169
+2019-01-26 17:51:44 processing sample R16181
+2019-01-26 17:52:13 processing sample R15965
+2019-01-26 17:52:53 processing sample R15970
+2019-01-26 17:53:27 processing sample R16138
+2019-01-26 17:53:58 processing sample R15842
+2019-01-26 17:54:34 processing sample R15803
+2019-01-26 17:55:15 processing sample R16036
+2019-01-26 17:55:52 processing sample R16241
+2019-01-26 17:56:30 processing sample R16121
+2019-01-26 17:57:02 processing sample R16368
+2019-01-26 17:57:37 processing sample R15918
+2019-01-26 17:58:02 processing sample R16170
+2019-01-26 17:58:38 processing sample R16182
+2019-01-26 17:59:14 processing sample R15966
+2019-01-26 17:59:54 processing sample R15971
+2019-01-26 18:00:32 processing sample R16397
+2019-01-26 18:01:07 processing sample R16398
+2019-01-26 18:01:41 processing sample R16219
+2019-01-26 18:02:20 processing sample R15999
+2019-01-26 18:02:57 processing sample R16425
+2019-01-26 18:03:37 processing sample R16426
+2019-01-26 18:04:12 processing sample R16220
+2019-01-26 18:04:51 processing sample R16079
+2019-01-26 18:05:32 processing sample R16139
+2019-01-26 18:06:00 processing sample R15843
+2019-01-26 18:06:34 processing sample R15804
+2019-01-26 18:07:12 processing sample R16037
+2019-01-26 18:07:48 processing sample R16430
+2019-01-26 18:08:21 processing sample R16431
+2019-01-26 18:08:58 processing sample R16221
+2019-01-26 18:09:31 processing sample R15972
+2019-01-26 18:10:17 processing sample R16434
+2019-01-26 18:10:50 processing sample R16435
+2019-01-26 18:11:26 processing sample R16222
+2019-01-26 18:12:05 processing sample R15973
+2019-01-26 18:12:41 processing sample R16140
+2019-01-26 18:13:23 processing sample R15844
+2019-01-26 18:13:57 processing sample R15805
+2019-01-26 18:14:33 processing sample R16038
+2019-01-26 18:15:26 processing sample R16141
+2019-01-26 18:15:55 processing sample R15845
+2019-01-26 18:16:28 processing sample R15806
+2019-01-26 18:17:05 processing sample R16051
+2019-01-26 18:17:39 processing sample R16385
+2019-01-26 18:18:16 processing sample R16386
+2019-01-26 18:18:55 processing sample R16367
+2019-01-26 18:19:34 processing sample R15980
+2019-01-26 18:20:05 processing sample R16439
+2019-01-26 18:20:43 processing sample R16440
+2019-01-26 18:20:59 processing sample R16223
+2019-01-26 18:21:44 processing sample R16078
+2019-01-26 18:22:25 processing sample R16142
+2019-01-26 18:22:43 processing sample R15831
+2019-01-26 18:22:57 processing sample R15807
+2019-01-26 18:23:36 processing sample R16053
+2019-01-26 18:24:14 processing sample R16443
+2019-01-26 18:24:46 processing sample R16444
+2019-01-26 18:25:22 processing sample R16224
+2019-01-26 18:26:10 processing sample R15974
+2019-01-26 18:26:47 processing sample R16447
+2019-01-26 18:27:14 processing sample R16448
+2019-01-26 18:27:50 processing sample R16225
+2019-01-26 18:28:34 processing sample R15975
+2019-01-26 18:29:21 processing sample R16429
+2019-01-26 18:30:00 processing sample R16068
+2019-01-26 18:30:33 processing sample R16320
+2019-01-26 18:31:20 processing sample R16054
+2019-01-26 18:32:00 processing sample R16451
+2019-01-26 18:32:43 processing sample R16452
+2019-01-26 18:33:20 processing sample R16226
+2019-01-26 18:33:57 processing sample R15976
+2019-01-26 18:34:39 processing sample R16143
+2019-01-26 16:59:16 processing sample R16481
+2019-01-26 16:59:49 processing sample R16482
+2019-01-26 17:00:28 processing sample R16419
+2019-01-26 17:01:01 processing sample R16257
+2019-01-26 17:01:41 processing sample R16486
+2019-01-26 17:02:13 processing sample R16487
+2019-01-26 17:02:44 processing sample R16436
+2019-01-26 17:03:18 processing sample R16258
+2019-01-26 17:03:56 processing sample R16491
+2019-01-26 17:04:34 processing sample R16492
+2019-01-26 17:05:05 processing sample R16417
+2019-01-26 17:05:38 processing sample R16259
+2019-01-26 17:06:12 processing sample R16496
+2019-01-26 17:06:47 processing sample R16497
+2019-01-26 17:07:27 processing sample R16416
+2019-01-26 17:08:06 processing sample R16260
+2019-01-26 17:08:42 processing sample R16247
+2019-01-26 17:09:15 processing sample R16043
+2019-01-26 17:09:59 processing sample R16212
+2019-01-26 17:10:34 processing sample R16124
+2019-01-26 17:11:09 processing sample R16500
+2019-01-26 17:11:47 processing sample R16501
+2019-01-26 17:12:24 processing sample R16415
+2019-01-26 17:13:01 processing sample R16261
+2019-01-26 17:13:28 processing sample R16505
+2019-01-26 17:14:04 processing sample R16506
+2019-01-26 17:14:33 processing sample R16414
+2019-01-26 17:15:11 processing sample R16262
+2019-01-26 17:15:48 processing sample R16529
+2019-01-26 17:16:22 processing sample R16530
+2019-01-26 17:17:00 processing sample R16314
+2019-01-26 17:17:34 processing sample R16102
+2019-01-26 17:18:15 processing sample R16534
+2019-01-26 17:18:56 processing sample R16535
+2019-01-26 17:19:34 processing sample R16339
+2019-01-26 17:20:12 processing sample R16103
+2019-01-26 17:20:52 processing sample R17288
+2019-01-26 17:21:39 processing sample R16511
+2019-01-26 17:22:16 processing sample R16413
+2019-01-26 17:22:51 processing sample R16263
+2019-01-26 17:23:21 processing sample R16517
+2019-01-26 17:23:39 processing sample R16518
+2019-01-26 17:24:06 processing sample R16412
+2019-01-26 17:24:37 processing sample R16264
+2019-01-26 17:25:15 processing sample R16524
+2019-01-26 17:25:53 processing sample R16525
+2019-01-26 17:26:26 processing sample R16411
+2019-01-26 17:27:11 processing sample R16265
+2019-01-26 17:27:49 processing sample R16248
+2019-01-26 17:28:26 processing sample R16044
+2019-01-26 17:29:01 processing sample R16213
+2019-01-26 17:29:35 processing sample R16125
+2019-01-26 17:30:17 processing sample R16249
+2019-01-26 17:30:54 processing sample R16045
+2019-01-26 17:31:33 processing sample R16214
+2019-01-26 17:32:11 processing sample R16126
+2019-01-26 17:32:50 processing sample R16542
+2019-01-26 17:33:29 processing sample R16543
+2019-01-26 17:34:05 processing sample R16340
+2019-01-26 17:34:47 processing sample R16109
+2019-01-26 17:35:28 processing sample R16531
+2019-01-26 17:36:06 processing sample R16533
+2019-01-26 17:36:41 processing sample R16532
+2019-01-26 17:37:22 processing sample R16266
+2019-01-26 17:37:54 processing sample R16550
+2019-01-26 17:38:32 processing sample R16551
+2019-01-26 17:39:08 processing sample R16341
+2019-01-26 17:39:48 processing sample R16110
+2019-01-26 17:40:30 processing sample R16250
+2019-01-26 17:41:06 processing sample R16046
+2019-01-26 17:41:46 processing sample R16215
+2019-01-26 17:42:26 processing sample R16127
+2019-01-26 17:42:57 processing sample R16536
+2019-01-26 17:43:35 processing sample R16538
+2019-01-26 17:44:13 processing sample R16537
+2019-01-26 17:44:42 processing sample R16279
+2019-01-26 17:45:12 processing sample R16483
+2019-01-26 17:45:45 processing sample R16070
+2019-01-26 17:46:24 processing sample R16322
+2019-01-26 17:47:02 processing sample R16128
+2019-01-26 17:47:39 processing sample R16544
+2019-01-26 17:48:16 processing sample R16546
+2019-01-26 17:48:48 processing sample R16545
+2019-01-26 17:49:24 processing sample R16281
+2019-01-26 17:50:02 processing sample R16552
+2019-01-26 17:50:44 processing sample R16554
+2019-01-26 17:51:16 processing sample R16553
+2019-01-26 17:51:44 processing sample R16282
+2019-01-26 17:52:21 processing sample R16560
+2019-01-26 17:52:57 processing sample R16562
+2019-01-26 17:53:40 processing sample R16561
+2019-01-26 17:54:15 processing sample R16283
+2019-01-26 17:54:52 processing sample R16568
+2019-01-26 17:55:28 processing sample R16570
+2019-01-26 17:56:08 processing sample R16569
+2019-01-26 17:56:49 processing sample R16284
+2019-01-26 17:57:23 processing sample R16559
+2019-01-26 17:58:07 processing sample R16342
+2019-01-26 17:58:48 processing sample R16082
+2019-01-26 17:59:22 processing sample R16566
+2019-01-26 18:00:05 processing sample R16567
+2019-01-26 18:00:38 processing sample R16343
+2019-01-26 18:01:25 processing sample R16083
+2019-01-26 18:01:58 processing sample R16574
+2019-01-26 18:02:31 processing sample R16575
+2019-01-26 18:03:03 processing sample R16344
+2019-01-26 18:03:41 processing sample R16084
+2019-01-26 18:04:11 processing sample R16579
+2019-01-26 18:04:52 processing sample R16580
+2019-01-26 18:05:30 processing sample R16345
+2019-01-26 18:06:05 processing sample R16147
+2019-01-26 18:06:49 processing sample R16576
+2019-01-26 18:07:23 processing sample R16578
+2019-01-26 18:08:09 processing sample R16577
+2019-01-26 18:08:39 processing sample R17290
+2019-01-26 18:09:21 processing sample R16488
+2019-01-26 18:09:57 processing sample R17285
+2019-01-26 18:10:37 processing sample R16323
+2019-01-26 18:11:12 processing sample R16129
+2019-01-26 18:11:49 processing sample R16493
+2019-01-26 18:12:26 processing sample R16072
+2019-01-26 18:13:11 processing sample R16324
+2019-01-26 18:13:42 processing sample R16130
+2019-01-26 18:14:21 processing sample R16587
+2019-01-26 18:14:56 processing sample R16588
+2019-01-26 18:15:31 processing sample R16346
+2019-01-26 18:16:13 processing sample R16085
+2019-01-26 18:16:45 processing sample R16251
+2019-01-26 18:17:26 processing sample R16047
+2019-01-26 18:17:54 processing sample R16216
+2019-01-26 18:18:27 processing sample R16131
+2019-01-26 18:19:06 processing sample R16595
+2019-01-26 18:19:41 processing sample R16596
+2019-01-26 18:20:20 processing sample R16347
+2019-01-26 18:20:45 processing sample R16086
+2019-01-26 18:21:20 processing sample R16603
+2019-01-26 18:21:55 processing sample R16604
+2019-01-26 18:22:25 processing sample R16348
+2019-01-26 18:22:45 processing sample R16106
+2019-01-26 18:23:21 processing sample R16502
+2019-01-26 18:23:51 processing sample R16073
+2019-01-26 18:24:30 processing sample R16325
+2019-01-26 18:25:02 processing sample R16132
+2019-01-26 18:25:47 processing sample R16507
+2019-01-26 18:26:23 processing sample R16074
+2019-01-26 18:27:00 processing sample R16326
+2019-01-26 18:27:24 processing sample R16133
+2019-01-26 18:28:00 processing sample R16512
+2019-01-26 18:28:31 processing sample R16514
+2019-01-26 18:29:12 processing sample R17287
+2019-01-26 18:29:48 processing sample R16134
+2019-01-26 18:30:31 processing sample R16611
+2019-01-26 18:31:10 processing sample R16612
+2019-01-26 18:31:47 processing sample R16349
+2019-01-26 18:32:24 processing sample R16108
+2019-01-26 18:32:59 processing sample R16619
+2019-01-26 18:33:38 processing sample R16620
+2019-01-26 18:34:08 processing sample R16350
+2019-01-26 18:34:46 processing sample R16107
+2019-01-26 18:35:22 processing sample R16581
+2019-01-26 18:36:01 processing sample R16583
+2019-01-26 16:59:16 processing sample R16783
+2019-01-26 16:59:49 processing sample R16790
+2019-01-26 17:00:18 processing sample R15818
+2019-01-26 17:00:58 processing sample R16791
+2019-01-26 17:01:35 processing sample R16792
+2019-01-26 17:02:21 processing sample R16816
+2019-01-26 17:02:55 processing sample R16818
+2019-01-26 17:03:35 processing sample R16327
+2019-01-26 17:04:16 processing sample R16817
+2019-01-26 17:04:51 processing sample R16799
+2019-01-26 17:05:27 processing sample R15819
+2019-01-26 17:06:04 processing sample R16800
+2019-01-26 17:06:39 processing sample R16801
+2019-01-26 17:07:16 processing sample R16836
+2019-01-26 17:07:56 processing sample R16838
+2019-01-26 17:08:29 processing sample R16205
+2019-01-26 17:09:08 processing sample R16837
+2019-01-26 17:09:43 processing sample R16847
+2019-01-26 17:10:17 processing sample R16849
+2019-01-26 17:10:49 processing sample R16204
+2019-01-26 17:11:18 processing sample R16848
+2019-01-26 17:11:53 processing sample R16859
+2019-01-26 17:12:30 processing sample R16861
+2019-01-26 17:13:02 processing sample R16203
+2019-01-26 17:13:34 processing sample R16860
+2019-01-26 17:14:08 processing sample R16909
+2019-01-26 17:14:40 processing sample R16912
+2019-01-26 17:15:29 processing sample R16910
+2019-01-26 17:16:07 processing sample R16911
+2019-01-26 17:16:43 processing sample R16870
+2019-01-26 17:17:21 processing sample R16872
+2019-01-26 17:17:55 processing sample R16202
+2019-01-26 17:18:33 processing sample R16871
+2019-01-26 17:19:10 processing sample R16880
+2019-01-26 17:19:41 processing sample R16882
+2019-01-26 17:20:06 processing sample R16201
+2019-01-26 17:20:44 processing sample R16881
+2019-01-26 17:21:11 processing sample R16891
+2019-01-26 17:21:48 processing sample R16893
+2019-01-26 17:22:20 processing sample R16200
+2019-01-26 17:22:56 processing sample R16892
+2019-01-26 17:23:31 processing sample R16809
+2019-01-26 17:23:51 processing sample R15820
+2019-01-26 17:24:23 processing sample R16810
+2019-01-26 17:25:05 processing sample R16811
+2019-01-26 17:25:47 processing sample R16819
+2019-01-26 17:26:21 processing sample R15821
+2019-01-26 17:26:53 processing sample R16820
+2019-01-26 17:27:29 processing sample R16821
+2019-01-26 17:28:10 processing sample R16902
+2019-01-26 17:28:51 processing sample R16904
+2019-01-26 17:29:22 processing sample R16199
+2019-01-26 17:30:04 processing sample R16903
+2019-01-26 17:30:33 processing sample R16920
+2019-01-26 17:30:59 processing sample R16923
+2019-01-26 17:31:38 processing sample R16921
+2019-01-26 17:32:23 processing sample R16922
+2019-01-26 17:33:00 processing sample R16913
+2019-01-26 17:33:32 processing sample R16915
+2019-01-26 17:33:55 processing sample R16198
+2019-01-26 17:34:36 processing sample R16914
+2019-01-26 17:35:21 processing sample R16829
+2019-01-26 17:35:59 processing sample R15822
+2019-01-26 17:36:38 processing sample R16830
+2019-01-26 17:37:17 processing sample R17291
+2019-01-26 17:37:47 processing sample R16924
+2019-01-26 17:38:24 processing sample R16926
+2019-01-26 17:38:51 processing sample R16197
+2019-01-26 17:39:23 processing sample R16925
+2019-01-26 17:39:55 processing sample R16935
+2019-01-26 17:40:29 processing sample R16937
+2019-01-26 17:41:02 processing sample R15859
+2019-01-26 17:41:37 processing sample R16936
+2019-01-26 17:42:09 processing sample R16839
+2019-01-26 17:42:51 processing sample R16842
+2019-01-26 17:43:34 processing sample R16840
+2019-01-26 17:44:11 processing sample R16841
+2019-01-26 17:44:47 processing sample R16931
+2019-01-26 17:45:26 processing sample R16934
+2019-01-26 17:46:05 processing sample R16932
+2019-01-26 17:46:45 processing sample R16933
+2019-01-26 17:47:18 processing sample R16862
+2019-01-26 17:48:05 processing sample R16865
+2019-01-26 17:48:48 processing sample R16863
+2019-01-26 17:49:25 processing sample R16864
+2019-01-26 17:50:03 processing sample R16946
+2019-01-26 17:50:44 processing sample R16948
+2019-01-26 17:51:19 processing sample R15860
+2019-01-26 17:51:48 processing sample R16947
+2019-01-26 17:52:14 processing sample R16959
+2019-01-26 17:52:45 processing sample R16961
+2019-01-26 17:53:37 processing sample R15861
+2019-01-26 17:54:19 processing sample R16960
+2019-01-26 17:54:56 processing sample R16873
+2019-01-26 17:55:30 processing sample R16876
+2019-01-26 17:56:07 processing sample R16874
+2019-01-26 17:56:41 processing sample R16875
+2019-01-26 17:57:21 processing sample R16970
+2019-01-26 17:57:54 processing sample R16972
+2019-01-26 17:58:34 processing sample R15862
+2019-01-26 17:59:15 processing sample R16971
+2019-01-26 17:59:49 processing sample R16976
+2019-01-26 18:00:23 processing sample R16978
+2019-01-26 18:01:00 processing sample R15864
+2019-01-26 18:01:41 processing sample R16977
+2019-01-26 18:02:21 processing sample R16883
+2019-01-26 18:02:56 processing sample R16886
+2019-01-26 18:03:29 processing sample R16884
+2019-01-26 18:04:08 processing sample R16885
+2019-01-26 18:04:44 processing sample R16987
+2019-01-26 18:05:21 processing sample R16989
+2019-01-26 18:05:58 processing sample R15865
+2019-01-26 18:06:31 processing sample R16988
+2019-01-26 18:07:03 processing sample R16894
+2019-01-26 18:07:40 processing sample R16897
+2019-01-26 18:08:10 processing sample R16895
+2019-01-26 18:08:43 processing sample R16896
+2019-01-26 18:09:14 processing sample R16942
+2019-01-26 18:09:45 processing sample R16945
+2019-01-26 18:10:22 processing sample R16943
+2019-01-26 18:10:55 processing sample R16952
+2019-01-26 18:11:37 processing sample R16905
+2019-01-26 18:12:17 processing sample R16908
+2019-01-26 18:12:54 processing sample R16906
+2019-01-26 18:13:41 processing sample R16907
+2019-01-26 18:14:25 processing sample R16916
+2019-01-26 18:15:06 processing sample R16919
+2019-01-26 18:15:56 processing sample R16917
+2019-01-26 18:16:42 processing sample R16918
+2019-01-26 18:17:15 processing sample R16927
+2019-01-26 18:17:47 processing sample R16930
+2019-01-26 18:18:27 processing sample R16928
+2019-01-26 18:19:02 processing sample R16929
+2019-01-26 18:19:37 processing sample R16938
+2019-01-26 18:20:18 processing sample R16941
+2019-01-26 18:20:45 processing sample R16939
+2019-01-26 18:21:20 processing sample R16951
+2019-01-26 18:22:05 processing sample R16955
+2019-01-26 18:22:29 processing sample R16958
+2019-01-26 18:22:47 processing sample R16956
+2019-01-26 18:23:27 processing sample R16999
+2019-01-26 18:24:01 processing sample R16966
+2019-01-26 18:24:40 processing sample R16969
+2019-01-26 18:25:19 processing sample R16967
+2019-01-26 18:25:57 processing sample R17001
+2019-01-26 18:26:33 processing sample R16957
+2019-01-26 18:27:15 processing sample R16975
+2019-01-26 18:27:43 processing sample R16968
+2019-01-26 18:28:20 processing sample R16965
+2019-01-26 18:29:02 processing sample R16949
+2019-01-26 18:29:36 processing sample R16944
+2019-01-26 18:30:15 processing sample R16950
+2019-01-26 18:30:50 processing sample R16940
+2019-01-26 18:31:29 processing sample R16998
+2019-01-26 18:32:03 processing sample R17003
+2019-01-26 18:32:44 processing sample R15869
+2019-01-26 18:33:16 processing sample R17002
+2019-01-26 18:33:58 processing sample R16962
+2019-01-26 18:34:45 processing sample R17000
+2019-01-26 18:35:25 processing sample R16963
+2019-01-26 18:36:12 processing sample R16964
+2019-01-26 16:59:16 processing sample R15846
+2019-01-26 16:59:50 processing sample R15809
+2019-01-26 17:00:37 processing sample R16056
+2019-01-26 17:01:19 processing sample R17284
+2019-01-26 17:02:00 processing sample R16387
+2019-01-26 17:02:45 processing sample R16392
+2019-01-26 17:03:17 processing sample R16366
+2019-01-26 17:03:50 processing sample R15983
+2019-01-26 17:04:25 processing sample R16388
+2019-01-26 17:05:01 processing sample R16393
+2019-01-26 17:05:38 processing sample R16365
+2019-01-26 17:06:16 processing sample R15984
+2019-01-26 17:06:52 processing sample R16455
+2019-01-26 17:07:26 processing sample R16456
+2019-01-26 17:08:06 processing sample R16227
+2019-01-26 17:08:32 processing sample R16080
+2019-01-26 17:09:07 processing sample R16459
+2019-01-26 17:09:45 processing sample R16460
+2019-01-26 17:10:17 processing sample R16228
+2019-01-26 17:10:57 processing sample R15977
+2019-01-26 17:11:35 processing sample R16463
+2019-01-26 17:12:11 processing sample R16464
+2019-01-26 17:12:51 processing sample R16229
+2019-01-26 17:13:30 processing sample R15978
+2019-01-26 17:14:11 processing sample R16467
+2019-01-26 17:14:45 processing sample R16468
+2019-01-26 17:15:24 processing sample R16230
+2019-01-26 17:16:05 processing sample R15991
+2019-01-26 17:16:39 processing sample R16389
+2019-01-26 17:17:13 processing sample R16394
+2019-01-26 17:17:46 processing sample R16364
+2019-01-26 17:18:19 processing sample R15986
+2019-01-26 17:18:49 processing sample R16390
+2019-01-26 17:19:28 processing sample R16395
+2019-01-26 17:20:06 processing sample R16363
+2019-01-26 17:20:44 processing sample R15987
+2019-01-26 17:21:19 processing sample R16391
+2019-01-26 17:21:57 processing sample R16396
+2019-01-26 17:22:33 processing sample R16410
+2019-01-26 17:23:04 processing sample R15988
+2019-01-26 17:23:23 processing sample R16471
+2019-01-26 17:23:57 processing sample R16472
+2019-01-26 17:24:33 processing sample R16303
+2019-01-26 17:25:14 processing sample R15992
+2019-01-26 17:25:46 processing sample R16423
+2019-01-26 17:26:20 processing sample R16424
+2019-01-26 17:26:58 processing sample R16409
+2019-01-26 17:27:30 processing sample R15989
+2019-01-26 17:28:07 processing sample R16427
+2019-01-26 17:28:49 processing sample R16428
+2019-01-26 17:29:27 processing sample R16408
+2019-01-26 17:30:08 processing sample R15990
+2019-01-26 17:30:49 processing sample R16145
+2019-01-26 17:31:25 processing sample R15833
+2019-01-26 17:32:02 processing sample R15810
+2019-01-26 17:32:43 processing sample R16058
+2019-01-26 17:33:21 processing sample R16432
+2019-01-26 17:33:51 processing sample R16433
+2019-01-26 17:34:20 processing sample R16407
+2019-01-26 17:35:00 processing sample R16003
+2019-01-26 17:35:42 processing sample R16475
+2019-01-26 17:36:31 processing sample R16476
+2019-01-26 17:37:07 processing sample R16304
+2019-01-26 17:37:39 processing sample R15993
+2019-01-26 17:38:25 processing sample R16146
+2019-01-26 17:38:59 processing sample R15834
+2019-01-26 17:39:34 processing sample R16207
+2019-01-26 17:40:03 processing sample R16059
+2019-01-26 17:40:44 processing sample R16243
+2019-01-26 17:41:23 processing sample R16039
+2019-01-26 17:41:57 processing sample R16208
+2019-01-26 17:42:36 processing sample R16060
+2019-01-26 17:43:08 processing sample R16418
+2019-01-26 17:43:53 processing sample R16406
+2019-01-26 17:44:38 processing sample R16004
+2019-01-26 17:45:09 processing sample R16441
+2019-01-26 17:45:47 processing sample R16442
+2019-01-26 17:46:27 processing sample R16405
+2019-01-26 17:47:13 processing sample R16005
+2019-01-26 17:47:53 processing sample R16445
+2019-01-26 17:48:29 processing sample R16446
+2019-01-26 17:49:05 processing sample R16404
+2019-01-26 17:49:38 processing sample R16006
+2019-01-26 17:50:15 processing sample R16244
+2019-01-26 17:51:00 processing sample R16040
+2019-01-26 17:51:38 processing sample R16209
+2019-01-26 17:52:16 processing sample R16061
+2019-01-26 17:52:45 processing sample R16449
+2019-01-26 17:53:17 processing sample R16450
+2019-01-26 17:53:53 processing sample R16403
+2019-01-26 17:54:28 processing sample R16007
+2019-01-26 17:55:08 processing sample R16479
+2019-01-26 17:55:53 processing sample R16480
+2019-01-26 17:56:27 processing sample R16305
+2019-01-26 17:57:03 processing sample R15994
+2019-01-26 17:57:36 processing sample R16484
+2019-01-26 17:58:23 processing sample R16485
+2019-01-26 17:58:52 processing sample R16306
+2019-01-26 17:59:32 processing sample R16000
+2019-01-26 18:00:06 processing sample R16453
+2019-01-26 18:00:38 processing sample R16454
+2019-01-26 18:01:18 processing sample R16402
+2019-01-26 18:01:51 processing sample R16008
+2019-01-26 18:02:29 processing sample R16489
+2019-01-26 18:03:04 processing sample R17286
+2019-01-26 18:03:51 processing sample R16307
+2019-01-26 18:04:23 processing sample R16149
+2019-01-26 18:04:59 processing sample R16457
+2019-01-26 18:05:34 processing sample R16458
+2019-01-26 18:06:14 processing sample R16401
+2019-01-26 18:06:53 processing sample R16009
+2019-01-26 18:07:34 processing sample R16461
+2019-01-26 18:08:07 processing sample R16462
+2019-01-26 18:08:41 processing sample R16400
+2019-01-26 18:09:22 processing sample R16010
+2019-01-26 18:09:56 processing sample R16465
+2019-01-26 18:10:31 processing sample R16466
+2019-01-26 18:11:09 processing sample R16399
+2019-01-26 18:11:49 processing sample R16011
+2019-01-26 18:12:31 processing sample R16494
+2019-01-26 18:13:10 processing sample R16495
+2019-01-26 18:13:54 processing sample R16308
+2019-01-26 18:14:32 processing sample R16001
+2019-01-26 18:15:07 processing sample R16469
+2019-01-26 18:15:36 processing sample R16470
+2019-01-26 18:16:06 processing sample R16422
+2019-01-26 18:16:39 processing sample R16012
+2019-01-26 18:17:09 processing sample R16498
+2019-01-26 18:17:43 processing sample R16499
+2019-01-26 18:18:10 processing sample R16099
+2019-01-26 18:18:42 processing sample R16245
+2019-01-26 18:19:15 processing sample R16041
+2019-01-26 18:19:56 processing sample R16210
+2019-01-26 18:20:27 processing sample R16062
+2019-01-26 18:21:02 processing sample R16503
+2019-01-26 18:21:38 processing sample R16504
+2019-01-26 18:22:17 processing sample R16310
+2019-01-26 18:22:53 processing sample R16508
+2019-01-26 18:23:12 processing sample R16509
+2019-01-26 18:23:47 processing sample R16311
+2019-01-26 18:24:25 processing sample R16101
+2019-01-26 18:25:05 processing sample R16473
+2019-01-26 18:25:36 processing sample R16474
+2019-01-26 18:26:15 processing sample R16421
+2019-01-26 18:26:48 processing sample R16255
+2019-01-26 18:27:30 processing sample R16515
+2019-01-26 18:28:05 processing sample R16516
+2019-01-26 18:28:35 processing sample R17289
+2019-01-26 18:29:22 processing sample R16076
+2019-01-26 18:29:59 processing sample R16522
+2019-01-26 18:30:32 processing sample R16523
+2019-01-26 18:31:10 processing sample R16313
+2019-01-26 18:31:49 processing sample R16077
+2019-01-26 18:32:24 processing sample R16246
+2019-01-26 18:32:59 processing sample R16042
+2019-01-26 18:33:39 processing sample R16211
+2019-01-26 18:34:10 processing sample R16123
+2019-01-26 18:34:46 processing sample R16477
+2019-01-26 18:35:14 processing sample R16478
+2019-01-26 18:35:51 processing sample R16420
+2019-01-26 18:36:25 processing sample R16256
+2019-01-26 16:59:16 processing sample R16582
+2019-01-26 16:59:51 processing sample R16286
+2019-01-26 17:00:30 processing sample R16628
+2019-01-26 17:01:05 processing sample R16630
+2019-01-26 17:01:38 processing sample R16629
+2019-01-26 17:02:19 processing sample R16104
+2019-01-26 17:02:53 processing sample R16638
+2019-01-26 17:03:25 processing sample R16640
+2019-01-26 17:03:57 processing sample R16639
+2019-01-26 17:04:33 processing sample R16105
+2019-01-26 17:05:09 processing sample R16648
+2019-01-26 17:05:57 processing sample R16650
+2019-01-26 17:06:23 processing sample R16649
+2019-01-26 17:06:55 processing sample R16148
+2019-01-26 17:07:33 processing sample R16589
+2019-01-26 17:08:10 processing sample R16591
+2019-01-26 17:08:48 processing sample R16590
+2019-01-26 17:09:23 processing sample R16287
+2019-01-26 17:10:01 processing sample R16519
+2019-01-26 17:10:39 processing sample R16521
+2019-01-26 17:11:16 processing sample R16520
+2019-01-26 17:11:52 processing sample R16267
+2019-01-26 17:12:28 processing sample R16597
+2019-01-26 17:13:06 processing sample R16599
+2019-01-26 17:13:37 processing sample R16598
+2019-01-26 17:14:16 processing sample R16288
+2019-01-26 17:14:58 processing sample R16658
+2019-01-26 17:15:45 processing sample R16660
+2019-01-26 17:16:26 processing sample R16659
+2019-01-26 17:17:06 processing sample R16154
+2019-01-26 17:17:35 processing sample R16605
+2019-01-26 17:18:16 processing sample R16607
+2019-01-26 17:18:53 processing sample R16606
+2019-01-26 17:19:34 processing sample R16289
+2019-01-26 17:20:12 processing sample R16526
+2019-01-26 17:20:52 processing sample R16528
+2019-01-26 17:21:38 processing sample R16527
+2019-01-26 17:22:19 processing sample R16268
+2019-01-26 17:22:55 processing sample R16668
+2019-01-26 17:23:32 processing sample R16670
+2019-01-26 17:24:03 processing sample R16669
+2019-01-26 17:24:36 processing sample R16150
+2019-01-26 17:25:10 processing sample R16678
+2019-01-26 17:25:45 processing sample R16680
+2019-01-26 17:26:20 processing sample R16679
+2019-01-26 17:26:57 processing sample R16155
+2019-01-26 17:27:40 processing sample R16252
+2019-01-26 17:28:21 processing sample R16048
+2019-01-26 17:28:59 processing sample R16217
+2019-01-26 17:29:27 processing sample R16269
+2019-01-26 17:30:06 processing sample R16688
+2019-01-26 17:30:46 processing sample R16690
+2019-01-26 17:31:19 processing sample R16689
+2019-01-26 17:32:06 processing sample R16156
+2019-01-26 17:32:46 processing sample R16698
+2019-01-26 17:33:23 processing sample R16700
+2019-01-26 17:33:57 processing sample R16699
+2019-01-26 17:34:35 processing sample R16157
+2019-01-26 17:35:14 processing sample R16539
+2019-01-26 17:35:52 processing sample R16541
+2019-01-26 17:36:26 processing sample R16540
+2019-01-26 17:37:10 processing sample R16270
+2019-01-26 17:37:47 processing sample R16613
+2019-01-26 17:38:24 processing sample R16615
+2019-01-26 17:38:54 processing sample R16614
+2019-01-26 17:39:39 processing sample R16290
+2019-01-26 17:40:17 processing sample R16708
+2019-01-26 17:40:56 processing sample R16710
+2019-01-26 17:41:30 processing sample R16709
+2019-01-26 17:42:07 processing sample R16158
+2019-01-26 17:42:43 processing sample R16547
+2019-01-26 17:43:21 processing sample R16549
+2019-01-26 17:44:03 processing sample R16548
+2019-01-26 17:44:36 processing sample R16278
+2019-01-26 17:45:09 processing sample R16717
+2019-01-26 17:45:47 processing sample R16719
+2019-01-26 17:46:23 processing sample R16718
+2019-01-26 17:47:05 processing sample R16151
+2019-01-26 17:47:50 processing sample R16555
+2019-01-26 17:48:26 processing sample R16557
+2019-01-26 17:48:57 processing sample R16556
+2019-01-26 17:49:33 processing sample R16272
+2019-01-26 17:50:06 processing sample R16726
+2019-01-26 17:50:44 processing sample R16729
+2019-01-26 17:51:16 processing sample R16727
+2019-01-26 17:52:00 processing sample R16728
+2019-01-26 17:52:39 processing sample R16563
+2019-01-26 17:53:09 processing sample R16565
+2019-01-26 17:53:44 processing sample R16564
+2019-01-26 17:54:17 processing sample R16273
+2019-01-26 17:55:01 processing sample R16736
+2019-01-26 17:55:30 processing sample R16738
+2019-01-26 17:56:08 processing sample R16737
+2019-01-26 17:56:47 processing sample R16152
+2019-01-26 17:57:21 processing sample R16571
+2019-01-26 17:57:58 processing sample R16573
+2019-01-26 17:58:32 processing sample R16572
+2019-01-26 17:59:08 processing sample R16274
+2019-01-26 17:59:46 processing sample R16745
+2019-01-26 18:00:30 processing sample R16747
+2019-01-26 18:01:08 processing sample R16746
+2019-01-26 18:01:41 processing sample R16153
+2019-01-26 18:02:15 processing sample R16754
+2019-01-26 18:02:53 processing sample R16757
+2019-01-26 18:03:29 processing sample R16755
+2019-01-26 18:04:00 processing sample R16756
+2019-01-26 18:04:33 processing sample R16049
+2019-01-26 18:05:15 processing sample R16218
+2019-01-26 18:05:48 processing sample R16621
+2019-01-26 18:06:30 processing sample R16624
+2019-01-26 18:07:10 processing sample R16622
+2019-01-26 18:07:49 processing sample R16623
+2019-01-26 18:08:22 processing sample R16584
+2019-01-26 18:08:58 processing sample R16586
+2019-01-26 18:09:36 processing sample R16585
+2019-01-26 18:10:18 processing sample R16276
+2019-01-26 18:10:51 processing sample R16764
+2019-01-26 18:11:29 processing sample R16766
+2019-01-26 18:12:16 processing sample R16774
+2019-01-26 18:12:55 processing sample R16777
+2019-01-26 18:13:28 processing sample R16775
+2019-01-26 18:14:05 processing sample R16784
+2019-01-26 18:14:46 processing sample R16786
+2019-01-26 18:15:21 processing sample R16785
+2019-01-26 18:15:52 processing sample R16002
+2019-01-26 18:16:24 processing sample R16793
+2019-01-26 18:16:51 processing sample R16795
+2019-01-26 18:17:23 processing sample R16794
+2019-01-26 18:17:58 processing sample R16075
+2019-01-26 18:18:37 processing sample R16802
+2019-01-26 18:19:12 processing sample R16805
+2019-01-26 18:19:48 processing sample R16803
+2019-01-26 18:20:33 processing sample R16804
+2019-01-26 18:20:50 processing sample R16592
+2019-01-26 18:21:24 processing sample R16594
+2019-01-26 18:22:01 processing sample R16593
+2019-01-26 18:22:27 processing sample R16277
+2019-01-26 18:22:46 processing sample R16600
+2019-01-26 18:23:03 processing sample R16602
+2019-01-26 18:23:24 processing sample R16601
+2019-01-26 18:24:03 processing sample R16271
+2019-01-26 18:24:42 processing sample R16812
+2019-01-26 18:25:25 processing sample R16815
+2019-01-26 18:26:10 processing sample R16813
+2019-01-26 18:26:46 processing sample R16831
+2019-01-26 18:27:22 processing sample R16822
+2019-01-26 18:27:58 processing sample R16825
+2019-01-26 18:28:30 processing sample R16823
+2019-01-26 18:29:15 processing sample R16824
+2019-01-26 18:29:58 processing sample R16832
+2019-01-26 18:30:40 processing sample R16835
+2019-01-26 18:31:26 processing sample R16833
+2019-01-26 18:32:03 processing sample R16834
+2019-01-26 18:32:40 processing sample R16843
+2019-01-26 18:33:22 processing sample R16846
+2019-01-26 18:33:56 processing sample R16844
+2019-01-26 18:34:41 processing sample R16855
+2019-01-26 18:35:12 processing sample R16631
+2019-01-26 18:35:43 processing sample R16634
+2019-01-26 18:36:28 processing sample R16632
+2019-01-26 16:59:16 processing sample R16254
+2019-01-26 16:59:48 processing sample R16050
+2019-01-26 17:00:31 processing sample R16315
+2019-01-26 17:01:09 processing sample R16015
+2019-01-26 17:01:45 processing sample R15943
+2019-01-26 17:02:20 processing sample R15823
+2019-01-26 17:02:53 processing sample R15787
+2019-01-26 17:03:40 processing sample R16016
+2019-01-26 17:04:12 processing sample R15944
+2019-01-26 17:04:51 processing sample R15824
+2019-01-26 17:05:27 processing sample R15788
+2019-01-26 17:06:08 processing sample R16017
+2019-01-26 17:06:52 processing sample R15945
+2019-01-26 17:07:32 processing sample R15825
+2019-01-26 17:08:14 processing sample R15789
+2019-01-26 17:08:52 processing sample R16018
+2019-01-26 17:09:36 processing sample R15946
+2019-01-26 17:10:14 processing sample R15826
+2019-01-26 17:10:52 processing sample R17281
+2019-01-26 17:11:28 processing sample R16019
+2019-01-26 17:12:01 processing sample R15947
+2019-01-26 17:12:35 processing sample R15827
+2019-01-26 17:13:11 processing sample R15791
+2019-01-26 17:13:47 processing sample R16020
+2019-01-26 17:14:26 processing sample R15948
+2019-01-26 17:15:08 processing sample R15828
+2019-01-26 17:15:53 processing sample R15792
+2019-01-26 17:16:30 processing sample R16021
+2019-01-26 17:17:05 processing sample R15949
+2019-01-26 17:17:31 processing sample R15829
+2019-01-26 17:18:06 processing sample R15793
+2019-01-26 17:18:44 processing sample R16022
+2019-01-26 17:19:16 processing sample R15871
+2019-01-26 17:19:51 processing sample R15919
+2019-01-26 17:20:26 processing sample R15847
+2019-01-26 17:20:54 processing sample R15997
+2019-01-26 17:21:31 processing sample R15950
+2019-01-26 17:22:04 processing sample R15830
+2019-01-26 17:22:36 processing sample R15794
+2019-01-26 17:23:15 processing sample R16023
+2019-01-26 17:23:46 processing sample R15872
+2019-01-26 17:24:20 processing sample R15920
+2019-01-26 17:25:05 processing sample R15848
+2019-01-26 17:25:42 processing sample R15883
+2019-01-26 17:26:20 processing sample R15873
+2019-01-26 17:26:56 processing sample R15921
+2019-01-26 17:27:30 processing sample R15849
+2019-01-26 17:28:11 processing sample R15884
+2019-01-26 17:28:50 processing sample R15874
+2019-01-26 17:29:28 processing sample R15922
+2019-01-26 17:30:06 processing sample R15850
+2019-01-26 17:30:51 processing sample R15995
+2019-01-26 17:31:20 processing sample R15875
+2019-01-26 17:31:54 processing sample R15923
+2019-01-26 17:32:31 processing sample R15851
+2019-01-26 17:33:09 processing sample R15996
+2019-01-26 17:33:47 processing sample R15951
+2019-01-26 17:34:14 processing sample R15835
+2019-01-26 17:34:53 processing sample R15795
+2019-01-26 17:35:34 processing sample R16024
+2019-01-26 17:36:13 processing sample R15876
+2019-01-26 17:36:44 processing sample R15924
+2019-01-26 17:37:23 processing sample R15852
+2019-01-26 17:37:53 processing sample R15885
+2019-01-26 17:38:33 processing sample R15877
+2019-01-26 17:39:07 processing sample R15925
+2019-01-26 17:39:52 processing sample R15853
+2019-01-26 17:40:28 processing sample R15998
+2019-01-26 17:41:09 processing sample R16381
+2019-01-26 17:41:47 processing sample R16063
+2019-01-26 17:42:15 processing sample R16316
+2019-01-26 17:42:58 processing sample R16025
+2019-01-26 17:43:36 processing sample R15878
+2019-01-26 17:44:24 processing sample R15926
+2019-01-26 17:45:01 processing sample R15854
+2019-01-26 17:45:42 processing sample R16375
+2019-01-26 17:46:20 processing sample R16382
+2019-01-26 17:47:03 processing sample R16064
+2019-01-26 17:47:51 processing sample R16317
+2019-01-26 17:48:29 processing sample R17282
+2019-01-26 17:49:07 processing sample R15879
+2019-01-26 17:49:56 processing sample R15927
+2019-01-26 17:50:29 processing sample R15855
+2019-01-26 17:51:01 processing sample R16376
+2019-01-26 17:51:42 processing sample R16383
+2019-01-26 17:52:23 processing sample R16065
+2019-01-26 17:52:56 processing sample R16318
+2019-01-26 17:53:29 processing sample R17283
+2019-01-26 17:54:12 processing sample R16378
+2019-01-26 17:54:52 processing sample R16380
+2019-01-26 17:55:26 processing sample R16379
+2019-01-26 17:56:06 processing sample R16377
+2019-01-26 17:56:45 processing sample R15931
+2019-01-26 17:57:17 processing sample R16087
+2019-01-26 17:57:58 processing sample R16362
+2019-01-26 17:58:37 processing sample R15895
+2019-01-26 17:59:16 processing sample R15952
+2019-01-26 17:59:54 processing sample R15836
+2019-01-26 18:00:21 processing sample R15796
+2019-01-26 18:01:00 processing sample R16028
+2019-01-26 18:01:41 processing sample R15933
+2019-01-26 18:02:18 processing sample R16089
+2019-01-26 18:02:54 processing sample R16361
+2019-01-26 18:03:30 processing sample R15897
+2019-01-26 18:04:10 processing sample R15934
+2019-01-26 18:04:44 processing sample R16090
+2019-01-26 18:05:14 processing sample R16360
+2019-01-26 18:05:52 processing sample R15898
+2019-01-26 18:06:36 processing sample R15880
+2019-01-26 18:07:16 processing sample R15928
+2019-01-26 18:07:44 processing sample R15856
+2019-01-26 18:08:17 processing sample R15886
+2019-01-26 18:08:43 processing sample R15881
+2019-01-26 18:09:27 processing sample R15929
+2019-01-26 18:10:05 processing sample R15857
+2019-01-26 18:10:43 processing sample R15887
+2019-01-26 18:11:21 processing sample R16384
+2019-01-26 18:12:04 processing sample R16066
+2019-01-26 18:12:39 processing sample R16319
+2019-01-26 18:13:16 processing sample R16029
+2019-01-26 18:13:50 processing sample R15882
+2019-01-26 18:14:25 processing sample R15930
+2019-01-26 18:14:59 processing sample R15858
+2019-01-26 18:15:42 processing sample R15888
+2019-01-26 18:16:19 processing sample R15936
+2019-01-26 18:16:58 processing sample R16092
+2019-01-26 18:17:31 processing sample R16359
+2019-01-26 18:17:59 processing sample R15900
+2019-01-26 18:18:46 processing sample R15937
+2019-01-26 18:19:20 processing sample R16093
+2019-01-26 18:19:48 processing sample R16358
+2019-01-26 18:20:25 processing sample R15901
+2019-01-26 18:20:46 processing sample R15939
+2019-01-26 18:21:08 processing sample R16095
+2019-01-26 18:21:48 processing sample R16357
+2019-01-26 18:22:22 processing sample R15903
+2019-01-26 18:23:03 processing sample R15953
+2019-01-26 18:23:23 processing sample R15837
+2019-01-26 18:23:59 processing sample R15797
+2019-01-26 18:24:33 processing sample R16030
+2019-01-26 18:25:09 processing sample R15940
+2019-01-26 18:25:48 processing sample R16096
+2019-01-26 18:26:26 processing sample R16356
+2019-01-26 18:27:06 processing sample R15904
+2019-01-26 18:27:33 processing sample R15941
+2019-01-26 18:28:17 processing sample R16097
+2019-01-26 18:28:48 processing sample R16355
+2019-01-26 18:29:25 processing sample R15905
+2019-01-26 18:29:59 processing sample R16159
+2019-01-26 18:30:38 processing sample R16171
+2019-01-26 18:31:16 processing sample R15955
+2019-01-26 18:31:54 processing sample R15889
+2019-01-26 18:32:40 processing sample R16231
+2019-01-26 18:33:15 processing sample R16111
+2019-01-26 18:34:01 processing sample R16354
+2019-01-26 18:34:34 processing sample R15907
+2019-01-26 18:35:10 processing sample R16160
+2019-01-26 18:35:34 processing sample R16172
+2019-01-26 18:36:13 processing sample R15956
+2019-01-26 18:36:46 processing sample R15890
+2019-01-26 16:59:16 processing sample R16633
+2019-01-26 16:59:53 processing sample R16608
+2019-01-26 17:00:29 processing sample R16610
+2019-01-26 17:01:01 processing sample R16609
+2019-01-26 17:01:48 processing sample R16291
+2019-01-26 17:02:35 processing sample R16641
+2019-01-26 17:03:14 processing sample R16644
+2019-01-26 17:03:53 processing sample R16642
+2019-01-26 17:04:27 processing sample R16643
+2019-01-26 17:05:05 processing sample R16651
+2019-01-26 17:05:41 processing sample R16654
+2019-01-26 17:06:19 processing sample R16652
+2019-01-26 17:06:47 processing sample R16653
+2019-01-26 17:07:28 processing sample R16661
+2019-01-26 17:08:11 processing sample R16664
+2019-01-26 17:08:43 processing sample R16662
+2019-01-26 17:09:24 processing sample R16663
+2019-01-26 17:10:04 processing sample R16854
+2019-01-26 17:10:40 processing sample R16858
+2019-01-26 17:11:20 processing sample R16845
+2019-01-26 17:11:57 processing sample R16857
+2019-01-26 17:12:30 processing sample R16671
+2019-01-26 17:13:10 processing sample R16674
+2019-01-26 17:13:45 processing sample R16672
+2019-01-26 17:14:24 processing sample R16673
+2019-01-26 17:15:05 processing sample R16681
+2019-01-26 17:15:46 processing sample R16684
+2019-01-26 17:16:36 processing sample R16682
+2019-01-26 17:17:13 processing sample R16683
+2019-01-26 17:17:55 processing sample R16616
+2019-01-26 17:18:28 processing sample R16618
+2019-01-26 17:19:00 processing sample R16617
+2019-01-26 17:19:31 processing sample R16292
+2019-01-26 17:20:06 processing sample R16691
+2019-01-26 17:20:39 processing sample R16694
+2019-01-26 17:21:11 processing sample R16692
+2019-01-26 17:21:45 processing sample R16693
+2019-01-26 17:22:17 processing sample R16625
+2019-01-26 17:22:52 processing sample R16627
+2019-01-26 17:23:19 processing sample R16626
+2019-01-26 17:23:37 processing sample R16293
+2019-01-26 17:24:15 processing sample R16635
+2019-01-26 17:24:42 processing sample R16637
+2019-01-26 17:25:15 processing sample R16636
+2019-01-26 17:25:53 processing sample R16294
+2019-01-26 17:26:33 processing sample R16701
+2019-01-26 17:27:12 processing sample R16704
+2019-01-26 17:27:57 processing sample R16702
+2019-01-26 17:28:35 processing sample R16703
+2019-01-26 17:29:10 processing sample R16645
+2019-01-26 17:29:46 processing sample R16647
+2019-01-26 17:30:18 processing sample R16646
+2019-01-26 17:30:58 processing sample R16295
+2019-01-26 17:31:42 processing sample R16711
+2019-01-26 17:32:18 processing sample R16713
+2019-01-26 17:32:58 processing sample R16338
+2019-01-26 17:33:39 processing sample R16712
+2019-01-26 17:34:20 processing sample R16655
+2019-01-26 17:34:58 processing sample R16657
+2019-01-26 17:35:31 processing sample R16656
+2019-01-26 17:36:07 processing sample R16296
+2019-01-26 17:36:41 processing sample R16796
+2019-01-26 17:37:22 processing sample R16798
+2019-01-26 17:38:02 processing sample R16337
+2019-01-26 17:38:37 processing sample R16721
+2019-01-26 17:39:10 processing sample R16866
+2019-01-26 17:39:49 processing sample R16869
+2019-01-26 17:40:25 processing sample R16867
+2019-01-26 17:40:58 processing sample R16868
+2019-01-26 17:41:35 processing sample R16665
+2019-01-26 17:42:09 processing sample R16667
+2019-01-26 17:42:52 processing sample R16666
+2019-01-26 17:43:24 processing sample R16297
+2019-01-26 17:44:06 processing sample R16675
+2019-01-26 17:44:42 processing sample R16677
+2019-01-26 17:45:16 processing sample R16676
+2019-01-26 17:45:51 processing sample R16298
+2019-01-26 17:46:27 processing sample R16730
+2019-01-26 17:47:09 processing sample R16732
+2019-01-26 17:47:51 processing sample R16336
+2019-01-26 17:48:28 processing sample R16731
+2019-01-26 17:49:01 processing sample R16685
+2019-01-26 17:49:33 processing sample R16687
+2019-01-26 17:50:06 processing sample R16686
+2019-01-26 17:50:54 processing sample R16299
+2019-01-26 17:51:36 processing sample R16695
+2019-01-26 17:52:09 processing sample R16697
+2019-01-26 17:52:47 processing sample R16696
+2019-01-26 17:53:34 processing sample R16300
+2019-01-26 17:54:13 processing sample R16877
+2019-01-26 17:54:47 processing sample R16879
+2019-01-26 17:55:26 processing sample R16878
+2019-01-26 17:55:56 processing sample R16856
+2019-01-26 17:56:26 processing sample R16887
+2019-01-26 17:57:05 processing sample R16890
+2019-01-26 17:57:36 processing sample R16888
+2019-01-26 17:58:19 processing sample R16889
+2019-01-26 17:58:54 processing sample R16739
+2019-01-26 17:59:26 processing sample R16741
+2019-01-26 18:00:06 processing sample R16335
+2019-01-26 18:00:51 processing sample R16740
+2019-01-26 18:01:34 processing sample R16748
+2019-01-26 18:02:08 processing sample R16750
+2019-01-26 18:02:43 processing sample R16334
+2019-01-26 18:03:21 processing sample R16749
+2019-01-26 18:04:00 processing sample R16758
+2019-01-26 18:04:32 processing sample R16760
+2019-01-26 18:05:06 processing sample R16333
+2019-01-26 18:05:38 processing sample R16759
+2019-01-26 18:06:07 processing sample R16705
+2019-01-26 18:06:44 processing sample R16707
+2019-01-26 18:07:18 processing sample R16706
+2019-01-26 18:07:45 processing sample R16301
+2019-01-26 18:08:29 processing sample R16768
+2019-01-26 18:09:07 processing sample R16332
+2019-01-26 18:09:51 processing sample R16778
+2019-01-26 18:10:22 processing sample R16780
+2019-01-26 18:11:06 processing sample R16331
+2019-01-26 18:11:48 processing sample R16779
+2019-01-26 18:12:32 processing sample R16714
+2019-01-26 18:13:13 processing sample R16716
+2019-01-26 18:13:57 processing sample R16715
+2019-01-26 18:14:29 processing sample R16302
+2019-01-26 18:15:13 processing sample R16787
+2019-01-26 18:16:03 processing sample R16789
+2019-01-26 18:16:41 processing sample R16330
+2019-01-26 18:17:09 processing sample R16788
+2019-01-26 18:17:42 processing sample R16720
+2019-01-26 18:18:14 processing sample R16722
+2019-01-26 18:18:42 processing sample R16329
+2019-01-26 18:19:19 processing sample R16797
+2019-01-26 18:19:51 processing sample R16723
+2019-01-26 18:20:26 processing sample R15811
+2019-01-26 18:21:01 processing sample R16724
+2019-01-26 18:21:36 processing sample R16725
+2019-01-26 18:22:12 processing sample R16733
+2019-01-26 18:22:49 processing sample R15812
+2019-01-26 18:23:28 processing sample R16734
+2019-01-26 18:24:19 processing sample R16735
+2019-01-26 18:24:56 processing sample R16742
+2019-01-26 18:25:35 processing sample R15813
+2019-01-26 18:26:20 processing sample R16743
+2019-01-26 18:26:53 processing sample R16744
+2019-01-26 18:27:23 processing sample R16806
+2019-01-26 18:27:56 processing sample R16808
+2019-01-26 18:28:31 processing sample R16328
+2019-01-26 18:29:09 processing sample R16807
+2019-01-26 18:29:50 processing sample R16751
+2019-01-26 18:30:22 processing sample R15814
+2019-01-26 18:31:02 processing sample R16752
+2019-01-26 18:31:43 processing sample R16753
+2019-01-26 18:32:20 processing sample R16898
+2019-01-26 18:33:02 processing sample R16901
+2019-01-26 18:33:43 processing sample R16899
+2019-01-26 18:34:30 processing sample R16900
+2019-01-26 18:35:03 processing sample R16761
+2019-01-26 18:35:31 processing sample R15815
+2019-01-26 18:36:01 processing sample R16762
+2019-01-26 18:36:37 processing sample R16781
+2019-01-26 18:37:18 processing sample R15817
+2019-01-26 18:37:54 processing sample R16782
+> 
+> covForward$bigwig_path = NULL
+> covForward$bigwig_file = NULL
+> 
+> covReverse = coverage_bwtool(reverseBw, regs, strand = "-", 
++ 	sumsdir = "degradation", bpparam = MulticoreParam(8))
+2019-01-26 18:44:04 switched sumsdir to degradation_strand_minus
+2019-01-26 18:44:04 creating the BED file degradation_strand_minus/coverage_bwtool_strand-_2019-01-26.bed
+2019-01-26 18:44:07 processing sample R16973
+2019-01-26 18:44:35 processing sample R16954
+2019-01-26 18:45:08 processing sample R16974
+2019-01-26 18:45:40 processing sample R16953
+2019-01-26 18:46:10 processing sample R17012
+2019-01-26 18:46:41 processing sample R17014
+2019-01-26 18:47:13 processing sample R15870
+2019-01-26 18:47:49 processing sample R17013
+2019-01-26 18:48:32 processing sample R16983
+2019-01-26 18:49:04 processing sample R16986
+2019-01-26 18:49:32 processing sample R16984
+2019-01-26 18:49:58 processing sample R16985
+2019-01-26 18:50:23 processing sample R16979
+2019-01-26 18:50:53 processing sample R16982
+2019-01-26 18:51:27 processing sample R16980
+2019-01-26 18:51:53 processing sample R16981
+2019-01-26 18:52:29 processing sample R16990
+2019-01-26 18:53:03 processing sample R16993
+2019-01-26 18:53:40 processing sample R16991
+2019-01-26 18:54:11 processing sample R16992
+2019-01-26 18:54:41 processing sample R17004
+2019-01-26 18:55:13 processing sample R17007
+2019-01-26 18:55:50 processing sample R17005
+2019-01-26 18:56:23 processing sample R17006
+2019-01-26 18:56:49 processing sample R17023
+2019-01-26 18:57:13 processing sample R17025
+2019-01-26 18:57:45 processing sample R16183
+2019-01-26 18:58:14 processing sample R17024
+2019-01-26 18:58:42 processing sample R17026
+2019-01-26 18:59:10 processing sample R17029
+2019-01-26 18:59:42 processing sample R17027
+2019-01-26 19:00:13 processing sample R17028
+2019-01-26 19:00:42 processing sample R16994
+2019-01-26 19:01:21 processing sample R16997
+2019-01-26 19:01:55 processing sample R16995
+2019-01-26 19:02:34 processing sample R16996
+2019-01-26 19:02:56 processing sample R17037
+2019-01-26 19:03:21 processing sample R17040
+2019-01-26 19:03:44 processing sample R17038
+2019-01-26 19:04:20 processing sample R17039
+2019-01-26 19:04:43 processing sample R17048
+2019-01-26 19:05:12 processing sample R17051
+2019-01-26 19:05:43 processing sample R17049
+2019-01-26 19:06:19 processing sample R17050
+2019-01-26 19:06:49 processing sample R17008
+2019-01-26 19:07:17 processing sample R17011
+2019-01-26 19:07:44 processing sample R17009
+2019-01-26 19:08:12 processing sample R17010
+2019-01-26 19:08:42 processing sample R17059
+2019-01-26 19:09:13 processing sample R17062
+2019-01-26 19:09:43 processing sample R17060
+2019-01-26 19:10:09 processing sample R17061
+2019-01-26 19:10:36 processing sample R17019
+2019-01-26 19:11:01 processing sample R17022
+2019-01-26 19:11:35 processing sample R17020
+2019-01-26 19:12:01 processing sample R17021
+2019-01-26 19:12:31 processing sample R17030
+2019-01-26 19:13:00 processing sample R17033
+2019-01-26 19:13:34 processing sample R17031
+2019-01-26 19:14:06 processing sample R17032
+2019-01-26 19:14:38 processing sample R17041
+2019-01-26 19:15:10 processing sample R17044
+2019-01-26 19:15:40 processing sample R17042
+2019-01-26 19:16:14 processing sample R17043
+2019-01-26 19:16:49 processing sample R17034
+2019-01-26 19:17:09 processing sample R17036
+2019-01-26 19:17:43 processing sample R16184
+2019-01-26 19:18:10 processing sample R17292
+2019-01-26 19:18:47 processing sample R17070
+2019-01-26 19:19:09 processing sample R17073
+2019-01-26 19:19:43 processing sample R17071
+2019-01-26 19:20:20 processing sample R17072
+2019-01-26 19:20:59 processing sample R17045
+2019-01-26 19:21:20 processing sample R17047
+2019-01-26 19:21:50 processing sample R16185
+2019-01-26 19:22:23 processing sample R17293
+2019-01-26 19:22:47 processing sample R17081
+2019-01-26 19:23:26 processing sample R17084
+2019-01-26 19:24:03 processing sample R17082
+2019-01-26 19:24:33 processing sample R17083
+2019-01-26 19:25:06 processing sample R17056
+2019-01-26 19:25:43 processing sample R17058
+2019-01-26 19:26:16 processing sample R16186
+2019-01-26 19:26:47 processing sample R17057
+2019-01-26 19:27:12 processing sample R17067
+2019-01-26 19:27:46 processing sample R17069
+2019-01-26 19:28:12 processing sample R16187
+2019-01-26 19:28:39 processing sample R17068
+2019-01-26 19:29:09 processing sample R17078
+2019-01-26 19:29:43 processing sample R17080
+2019-01-26 19:30:19 processing sample R16188
+2019-01-26 19:30:47 processing sample R17079
+2019-01-26 19:31:24 processing sample R17092
+2019-01-26 19:31:58 processing sample R17087
+2019-01-26 19:32:26 processing sample R17093
+2019-01-26 19:32:54 processing sample R17094
+2019-01-26 19:33:28 processing sample R17103
+2019-01-26 19:33:59 processing sample R17106
+2019-01-26 19:34:32 processing sample R17104
+2019-01-26 19:35:10 processing sample R17105
+2019-01-26 19:35:46 processing sample R17089
+2019-01-26 19:36:17 processing sample R17091
+2019-01-26 19:36:48 processing sample R16189
+2019-01-26 19:37:24 processing sample R17090
+2019-01-26 19:37:57 processing sample R17100
+2019-01-26 19:38:27 processing sample R17102
+2019-01-26 19:38:55 processing sample R16190
+2019-01-26 19:39:31 processing sample R17101
+2019-01-26 19:40:00 processing sample R17052
+2019-01-26 19:40:27 processing sample R17055
+2019-01-26 19:41:02 processing sample R17053
+2019-01-26 19:41:32 processing sample R17054
+2019-01-26 19:42:01 processing sample R17125
+2019-01-26 19:42:32 processing sample R17128
+2019-01-26 19:43:02 processing sample R17126
+2019-01-26 19:43:42 processing sample R17127
+2019-01-26 19:44:11 processing sample R17063
+2019-01-26 19:44:34 processing sample R17066
+2019-01-26 19:45:04 processing sample R17064
+2019-01-26 19:45:35 processing sample R17065
+2019-01-26 19:46:09 processing sample R17122
+2019-01-26 19:46:38 processing sample R17124
+2019-01-26 19:46:59 processing sample R16192
+2019-01-26 19:47:33 processing sample R17123
+2019-01-26 19:48:01 processing sample R17074
+2019-01-26 19:48:30 processing sample R17077
+2019-01-26 19:48:59 processing sample R17075
+2019-01-26 19:49:24 processing sample R17076
+2019-01-26 19:49:49 processing sample R17133
+2019-01-26 19:50:23 processing sample R17135
+2019-01-26 19:50:55 processing sample R16193
+2019-01-26 19:51:22 processing sample R17134
+2019-01-26 19:51:55 processing sample R17085
+2019-01-26 19:52:24 processing sample R17088
+2019-01-26 19:52:44 processing sample R17086
+2019-01-26 19:53:01 processing sample R17095
+2019-01-26 19:53:30 processing sample R17096
+2019-01-26 19:53:57 processing sample R17099
+2019-01-26 19:54:27 processing sample R17097
+2019-01-26 19:54:52 processing sample R17098
+2019-01-26 19:55:21 processing sample R17166
+2019-01-26 19:55:49 processing sample R17168
+2019-01-26 19:56:23 processing sample R16196
+2019-01-26 19:57:00 processing sample R17167
+2019-01-26 19:57:37 processing sample R17118
+2019-01-26 19:58:10 processing sample R17121
+2019-01-26 19:58:41 processing sample R17119
+2019-01-26 19:59:07 processing sample R17120
+2019-01-26 19:59:34 processing sample R17129
+2019-01-26 20:00:07 processing sample R17132
+2019-01-26 20:00:29 processing sample R17130
+2019-01-26 20:01:04 processing sample R17131
+2019-01-26 20:01:34 processing sample R17169
+2019-01-26 20:02:07 processing sample R17172
+2019-01-26 20:02:44 processing sample R17170
+2019-01-26 20:03:08 processing sample R17171
+2019-01-26 20:03:49 processing sample R17173
+2019-01-26 20:04:14 processing sample R17176
+2019-01-26 20:04:49 processing sample R17174
+2019-01-26 20:05:18 processing sample R17175
+2019-01-26 18:44:07 processing sample R16161
+2019-01-26 18:44:38 processing sample R16173
+2019-01-26 18:45:16 processing sample R15957
+2019-01-26 18:45:55 processing sample R15891
+2019-01-26 18:46:35 processing sample R15954
+2019-01-26 18:47:04 processing sample R15838
+2019-01-26 18:47:25 processing sample R15798
+2019-01-26 18:48:05 processing sample R16031
+2019-01-26 18:48:40 processing sample R16232
+2019-01-26 18:49:12 processing sample R16112
+2019-01-26 18:49:46 processing sample R16353
+2019-01-26 18:50:08 processing sample R15908
+2019-01-26 18:50:40 processing sample R16162
+2019-01-26 18:51:03 processing sample R16174
+2019-01-26 18:51:37 processing sample R15958
+2019-01-26 18:52:10 processing sample R15892
+2019-01-26 18:52:33 processing sample R16163
+2019-01-26 18:53:02 processing sample R16175
+2019-01-26 18:53:32 processing sample R15959
+2019-01-26 18:54:05 processing sample R15893
+2019-01-26 18:54:42 processing sample R16233
+2019-01-26 18:55:14 processing sample R16113
+2019-01-26 18:55:43 processing sample R16352
+2019-01-26 18:56:20 processing sample R15909
+2019-01-26 18:56:46 processing sample R16234
+2019-01-26 18:57:19 processing sample R16114
+2019-01-26 18:57:51 processing sample R16351
+2019-01-26 18:58:28 processing sample R15910
+2019-01-26 18:59:08 processing sample R16135
+2019-01-26 18:59:38 processing sample R15839
+2019-01-26 19:00:08 processing sample R15799
+2019-01-26 19:00:40 processing sample R16032
+2019-01-26 19:01:10 processing sample R16235
+2019-01-26 19:01:43 processing sample R16115
+2019-01-26 19:02:12 processing sample R16374
+2019-01-26 19:02:47 processing sample R15911
+2019-01-26 19:03:15 processing sample R16236
+2019-01-26 19:03:39 processing sample R16116
+2019-01-26 19:04:04 processing sample R16373
+2019-01-26 19:04:27 processing sample R15912
+2019-01-26 19:05:01 processing sample R16164
+2019-01-26 19:05:34 processing sample R16176
+2019-01-26 19:06:06 processing sample R15960
+2019-01-26 19:06:34 processing sample R15894
+2019-01-26 19:07:00 processing sample R16136
+2019-01-26 19:07:24 processing sample R15840
+2019-01-26 19:08:01 processing sample R15800
+2019-01-26 19:08:35 processing sample R16033
+2019-01-26 19:09:07 processing sample R16237
+2019-01-26 19:09:34 processing sample R16117
+2019-01-26 19:10:00 processing sample R16372
+2019-01-26 19:10:32 processing sample R15913
+2019-01-26 19:11:02 processing sample R16165
+2019-01-26 19:11:31 processing sample R16177
+2019-01-26 19:12:04 processing sample R15961
+2019-01-26 19:12:31 processing sample R15967
+2019-01-26 19:12:56 processing sample R16137
+2019-01-26 19:13:23 processing sample R15841
+2019-01-26 19:13:59 processing sample R15801
+2019-01-26 19:14:30 processing sample R16034
+2019-01-26 19:15:00 processing sample R16166
+2019-01-26 19:15:32 processing sample R16178
+2019-01-26 19:16:05 processing sample R15962
+2019-01-26 19:16:42 processing sample R15968
+2019-01-26 19:17:10 processing sample R16167
+2019-01-26 19:17:37 processing sample R16179
+2019-01-26 19:18:08 processing sample R15963
+2019-01-26 19:18:42 processing sample R16081
+2019-01-26 19:19:08 processing sample R16238
+2019-01-26 19:19:37 processing sample R16118
+2019-01-26 19:20:12 processing sample R16371
+2019-01-26 19:20:41 processing sample R15915
+2019-01-26 19:21:17 processing sample R16168
+2019-01-26 19:21:45 processing sample R16180
+2019-01-26 19:22:10 processing sample R15964
+2019-01-26 19:22:44 processing sample R15969
+2019-01-26 19:23:06 processing sample R16239
+2019-01-26 19:23:34 processing sample R16119
+2019-01-26 19:23:57 processing sample R16370
+2019-01-26 19:24:23 processing sample R15916
+2019-01-26 19:24:56 processing sample R16144
+2019-01-26 19:25:29 processing sample R15832
+2019-01-26 19:25:53 processing sample R15802
+2019-01-26 19:26:22 processing sample R16035
+2019-01-26 19:26:55 processing sample R16240
+2019-01-26 19:27:25 processing sample R16120
+2019-01-26 19:28:00 processing sample R16369
+2019-01-26 19:28:30 processing sample R15917
+2019-01-26 19:29:01 processing sample R16169
+2019-01-26 19:29:34 processing sample R16181
+2019-01-26 19:30:01 processing sample R15965
+2019-01-26 19:30:30 processing sample R15970
+2019-01-26 19:30:55 processing sample R16138
+2019-01-26 19:31:25 processing sample R15842
+2019-01-26 19:31:56 processing sample R15803
+2019-01-26 19:32:26 processing sample R16036
+2019-01-26 19:32:58 processing sample R16241
+2019-01-26 19:33:32 processing sample R16121
+2019-01-26 19:34:05 processing sample R16368
+2019-01-26 19:34:39 processing sample R15918
+2019-01-26 19:35:14 processing sample R16170
+2019-01-26 19:35:46 processing sample R16182
+2019-01-26 19:36:17 processing sample R15966
+2019-01-26 19:36:48 processing sample R15971
+2019-01-26 19:37:17 processing sample R16397
+2019-01-26 19:37:54 processing sample R16398
+2019-01-26 19:38:24 processing sample R16219
+2019-01-26 19:38:51 processing sample R15999
+2019-01-26 19:39:21 processing sample R16425
+2019-01-26 19:39:51 processing sample R16426
+2019-01-26 19:40:25 processing sample R16220
+2019-01-26 19:41:01 processing sample R16079
+2019-01-26 19:41:29 processing sample R16139
+2019-01-26 19:42:04 processing sample R15843
+2019-01-26 19:42:39 processing sample R15804
+2019-01-26 19:43:15 processing sample R16037
+2019-01-26 19:43:47 processing sample R16430
+2019-01-26 19:44:18 processing sample R16431
+2019-01-26 19:44:53 processing sample R16221
+2019-01-26 19:45:24 processing sample R15972
+2019-01-26 19:45:55 processing sample R16434
+2019-01-26 19:46:21 processing sample R16435
+2019-01-26 19:46:50 processing sample R16222
+2019-01-26 19:47:15 processing sample R15973
+2019-01-26 19:47:44 processing sample R16140
+2019-01-26 19:48:22 processing sample R15844
+2019-01-26 19:48:47 processing sample R15805
+2019-01-26 19:49:15 processing sample R16038
+2019-01-26 19:49:41 processing sample R16141
+2019-01-26 19:50:18 processing sample R15845
+2019-01-26 19:50:53 processing sample R15806
+2019-01-26 19:51:25 processing sample R16051
+2019-01-26 19:51:59 processing sample R16385
+2019-01-26 19:52:30 processing sample R16386
+2019-01-26 19:52:43 processing sample R16367
+2019-01-26 19:52:57 processing sample R15980
+2019-01-26 19:53:21 processing sample R16439
+2019-01-26 19:53:50 processing sample R16440
+2019-01-26 19:54:24 processing sample R16223
+2019-01-26 19:54:57 processing sample R16078
+2019-01-26 19:55:38 processing sample R16142
+2019-01-26 19:56:15 processing sample R15831
+2019-01-26 19:56:58 processing sample R15807
+2019-01-26 19:57:37 processing sample R16053
+2019-01-26 19:58:05 processing sample R16443
+2019-01-26 19:58:41 processing sample R16444
+2019-01-26 19:59:13 processing sample R16224
+2019-01-26 19:59:48 processing sample R15974
+2019-01-26 20:00:21 processing sample R16447
+2019-01-26 20:00:53 processing sample R16448
+2019-01-26 20:01:18 processing sample R16225
+2019-01-26 20:01:46 processing sample R15975
+2019-01-26 20:02:22 processing sample R16429
+2019-01-26 20:02:55 processing sample R16068
+2019-01-26 20:03:30 processing sample R16320
+2019-01-26 20:04:04 processing sample R16054
+2019-01-26 20:04:40 processing sample R16451
+2019-01-26 20:05:17 processing sample R16452
+2019-01-26 20:05:47 processing sample R16226
+2019-01-26 20:06:22 processing sample R15976
+2019-01-26 20:06:50 processing sample R16143
+2019-01-26 18:44:07 processing sample R16633
+2019-01-26 18:44:48 processing sample R16608
+2019-01-26 18:45:14 processing sample R16610
+2019-01-26 18:45:45 processing sample R16609
+2019-01-26 18:46:12 processing sample R16291
+2019-01-26 18:46:48 processing sample R16641
+2019-01-26 18:47:15 processing sample R16644
+2019-01-26 18:47:33 processing sample R16642
+2019-01-26 18:48:06 processing sample R16643
+2019-01-26 18:48:40 processing sample R16651
+2019-01-26 18:49:20 processing sample R16654
+2019-01-26 18:49:51 processing sample R16652
+2019-01-26 18:50:22 processing sample R16653
+2019-01-26 18:50:55 processing sample R16661
+2019-01-26 18:51:31 processing sample R16664
+2019-01-26 18:52:05 processing sample R16662
+2019-01-26 18:52:33 processing sample R16663
+2019-01-26 18:53:07 processing sample R16854
+2019-01-26 18:53:34 processing sample R16858
+2019-01-26 18:54:08 processing sample R16845
+2019-01-26 18:54:41 processing sample R16857
+2019-01-26 18:55:03 processing sample R16671
+2019-01-26 18:55:40 processing sample R16674
+2019-01-26 18:56:17 processing sample R16672
+2019-01-26 18:56:51 processing sample R16673
+2019-01-26 18:57:32 processing sample R16681
+2019-01-26 18:58:11 processing sample R16684
+2019-01-26 18:58:50 processing sample R16682
+2019-01-26 18:59:21 processing sample R16683
+2019-01-26 18:59:58 processing sample R16616
+2019-01-26 19:00:27 processing sample R16618
+2019-01-26 19:01:06 processing sample R16617
+2019-01-26 19:01:42 processing sample R16292
+2019-01-26 19:02:17 processing sample R16691
+2019-01-26 19:02:50 processing sample R16694
+2019-01-26 19:03:17 processing sample R16692
+2019-01-26 19:03:51 processing sample R16693
+2019-01-26 19:04:12 processing sample R16625
+2019-01-26 19:04:39 processing sample R16627
+2019-01-26 19:05:10 processing sample R16626
+2019-01-26 19:05:36 processing sample R16293
+2019-01-26 19:06:11 processing sample R16635
+2019-01-26 19:06:44 processing sample R16637
+2019-01-26 19:07:17 processing sample R16636
+2019-01-26 19:07:50 processing sample R16294
+2019-01-26 19:08:23 processing sample R16701
+2019-01-26 19:09:00 processing sample R16704
+2019-01-26 19:09:36 processing sample R16702
+2019-01-26 19:10:07 processing sample R16703
+2019-01-26 19:10:44 processing sample R16645
+2019-01-26 19:11:15 processing sample R16647
+2019-01-26 19:11:42 processing sample R16646
+2019-01-26 19:12:19 processing sample R16295
+2019-01-26 19:12:56 processing sample R16711
+2019-01-26 19:13:30 processing sample R16713
+2019-01-26 19:13:58 processing sample R16338
+2019-01-26 19:14:24 processing sample R16712
+2019-01-26 19:14:52 processing sample R16655
+2019-01-26 19:15:25 processing sample R16657
+2019-01-26 19:15:57 processing sample R16656
+2019-01-26 19:16:31 processing sample R16296
+2019-01-26 19:17:09 processing sample R16796
+2019-01-26 19:17:36 processing sample R16798
+2019-01-26 19:18:11 processing sample R16337
+2019-01-26 19:18:50 processing sample R16721
+2019-01-26 19:19:10 processing sample R16866
+2019-01-26 19:19:29 processing sample R16869
+2019-01-26 19:19:52 processing sample R16867
+2019-01-26 19:20:23 processing sample R16868
+2019-01-26 19:21:03 processing sample R16665
+2019-01-26 19:21:28 processing sample R16667
+2019-01-26 19:21:58 processing sample R16666
+2019-01-26 19:22:23 processing sample R16297
+2019-01-26 19:23:04 processing sample R16675
+2019-01-26 19:23:35 processing sample R16677
+2019-01-26 19:24:02 processing sample R16676
+2019-01-26 19:24:26 processing sample R16298
+2019-01-26 19:24:56 processing sample R16730
+2019-01-26 19:25:30 processing sample R16732
+2019-01-26 19:26:03 processing sample R16336
+2019-01-26 19:26:32 processing sample R16731
+2019-01-26 19:26:58 processing sample R16685
+2019-01-26 19:27:32 processing sample R16687
+2019-01-26 19:28:07 processing sample R16686
+2019-01-26 19:28:36 processing sample R16299
+2019-01-26 19:29:06 processing sample R16695
+2019-01-26 19:29:41 processing sample R16697
+2019-01-26 19:30:16 processing sample R16696
+2019-01-26 19:30:46 processing sample R16300
+2019-01-26 19:31:20 processing sample R16877
+2019-01-26 19:31:45 processing sample R16879
+2019-01-26 19:32:07 processing sample R16878
+2019-01-26 19:32:36 processing sample R16856
+2019-01-26 19:32:58 processing sample R16887
+2019-01-26 19:33:23 processing sample R16890
+2019-01-26 19:33:51 processing sample R16888
+2019-01-26 19:34:23 processing sample R16889
+2019-01-26 19:34:54 processing sample R16739
+2019-01-26 19:35:18 processing sample R16741
+2019-01-26 19:35:47 processing sample R16335
+2019-01-26 19:36:19 processing sample R16740
+2019-01-26 19:36:49 processing sample R16748
+2019-01-26 19:37:15 processing sample R16750
+2019-01-26 19:37:45 processing sample R16334
+2019-01-26 19:38:10 processing sample R16749
+2019-01-26 19:38:45 processing sample R16758
+2019-01-26 19:39:16 processing sample R16760
+2019-01-26 19:39:45 processing sample R16333
+2019-01-26 19:40:16 processing sample R16759
+2019-01-26 19:40:40 processing sample R16705
+2019-01-26 19:41:16 processing sample R16707
+2019-01-26 19:41:45 processing sample R16706
+2019-01-26 19:42:11 processing sample R16301
+2019-01-26 19:42:42 processing sample R16768
+2019-01-26 19:43:19 processing sample R16332
+2019-01-26 19:43:57 processing sample R16778
+2019-01-26 19:44:34 processing sample R16780
+2019-01-26 19:45:04 processing sample R16331
+2019-01-26 19:45:42 processing sample R16779
+2019-01-26 19:46:11 processing sample R16714
+2019-01-26 19:46:40 processing sample R16716
+2019-01-26 19:47:04 processing sample R16715
+2019-01-26 19:47:34 processing sample R16302
+2019-01-26 19:48:01 processing sample R16787
+2019-01-26 19:48:36 processing sample R16789
+2019-01-26 19:49:08 processing sample R16330
+2019-01-26 19:49:42 processing sample R16788
+2019-01-26 19:50:12 processing sample R16720
+2019-01-26 19:50:44 processing sample R16722
+2019-01-26 19:51:15 processing sample R16329
+2019-01-26 19:51:47 processing sample R16797
+2019-01-26 19:52:18 processing sample R16723
+2019-01-26 19:52:36 processing sample R15811
+2019-01-26 19:52:55 processing sample R16724
+2019-01-26 19:53:20 processing sample R16725
+2019-01-26 19:53:48 processing sample R16733
+2019-01-26 19:54:23 processing sample R15812
+2019-01-26 19:54:53 processing sample R16734
+2019-01-26 19:55:20 processing sample R16735
+2019-01-26 19:55:55 processing sample R16742
+2019-01-26 19:56:20 processing sample R15813
+2019-01-26 19:56:57 processing sample R16743
+2019-01-26 19:57:28 processing sample R16744
+2019-01-26 19:58:03 processing sample R16806
+2019-01-26 19:58:30 processing sample R16808
+2019-01-26 19:59:03 processing sample R16328
+2019-01-26 19:59:37 processing sample R16807
+2019-01-26 20:00:15 processing sample R16751
+2019-01-26 20:00:48 processing sample R15814
+2019-01-26 20:01:21 processing sample R16752
+2019-01-26 20:02:02 processing sample R16753
+2019-01-26 20:02:28 processing sample R16898
+2019-01-26 20:03:03 processing sample R16901
+2019-01-26 20:03:37 processing sample R16899
+2019-01-26 20:04:13 processing sample R16900
+2019-01-26 20:04:39 processing sample R16761
+2019-01-26 20:05:12 processing sample R15815
+2019-01-26 20:05:40 processing sample R16762
+2019-01-26 20:06:03 processing sample R16781
+2019-01-26 20:06:33 processing sample R15817
+2019-01-26 20:07:04 processing sample R16782
+2019-01-26 18:44:07 processing sample R15846
+2019-01-26 18:44:39 processing sample R15809
+2019-01-26 18:45:19 processing sample R16056
+2019-01-26 18:45:51 processing sample R17284
+2019-01-26 18:46:16 processing sample R16387
+2019-01-26 18:47:03 processing sample R16392
+2019-01-26 18:47:25 processing sample R16366
+2019-01-26 18:47:59 processing sample R15983
+2019-01-26 18:48:30 processing sample R16388
+2019-01-26 18:49:00 processing sample R16393
+2019-01-26 18:49:31 processing sample R16365
+2019-01-26 18:49:56 processing sample R15984
+2019-01-26 18:50:34 processing sample R16455
+2019-01-26 18:51:04 processing sample R16456
+2019-01-26 18:51:38 processing sample R16227
+2019-01-26 18:52:09 processing sample R16080
+2019-01-26 18:52:45 processing sample R16459
+2019-01-26 18:53:22 processing sample R16460
+2019-01-26 18:53:54 processing sample R16228
+2019-01-26 18:54:26 processing sample R15977
+2019-01-26 18:54:53 processing sample R16463
+2019-01-26 18:55:25 processing sample R16464
+2019-01-26 18:56:01 processing sample R16229
+2019-01-26 18:56:29 processing sample R15978
+2019-01-26 18:57:00 processing sample R16467
+2019-01-26 18:57:38 processing sample R16468
+2019-01-26 18:58:08 processing sample R16230
+2019-01-26 18:58:42 processing sample R15991
+2019-01-26 18:59:06 processing sample R16389
+2019-01-26 18:59:38 processing sample R16394
+2019-01-26 19:00:10 processing sample R16364
+2019-01-26 19:00:39 processing sample R15986
+2019-01-26 19:01:11 processing sample R16390
+2019-01-26 19:01:39 processing sample R16395
+2019-01-26 19:02:14 processing sample R16363
+2019-01-26 19:02:47 processing sample R15987
+2019-01-26 19:03:21 processing sample R16391
+2019-01-26 19:03:48 processing sample R16396
+2019-01-26 19:04:24 processing sample R16410
+2019-01-26 19:04:58 processing sample R15988
+2019-01-26 19:05:27 processing sample R16471
+2019-01-26 19:05:58 processing sample R16472
+2019-01-26 19:06:34 processing sample R16303
+2019-01-26 19:07:06 processing sample R15992
+2019-01-26 19:07:35 processing sample R16423
+2019-01-26 19:08:00 processing sample R16424
+2019-01-26 19:08:41 processing sample R16409
+2019-01-26 19:09:13 processing sample R15989
+2019-01-26 19:09:42 processing sample R16427
+2019-01-26 19:10:09 processing sample R16428
+2019-01-26 19:10:42 processing sample R16408
+2019-01-26 19:11:14 processing sample R15990
+2019-01-26 19:11:43 processing sample R16145
+2019-01-26 19:12:05 processing sample R15833
+2019-01-26 19:12:34 processing sample R15810
+2019-01-26 19:13:00 processing sample R16058
+2019-01-26 19:13:31 processing sample R16432
+2019-01-26 19:13:58 processing sample R16433
+2019-01-26 19:14:30 processing sample R16407
+2019-01-26 19:15:03 processing sample R16003
+2019-01-26 19:15:37 processing sample R16475
+2019-01-26 19:16:14 processing sample R16476
+2019-01-26 19:16:49 processing sample R16304
+2019-01-26 19:17:29 processing sample R15993
+2019-01-26 19:18:02 processing sample R16146
+2019-01-26 19:18:41 processing sample R15834
+2019-01-26 19:19:08 processing sample R16207
+2019-01-26 19:19:26 processing sample R16059
+2019-01-26 19:20:01 processing sample R16243
+2019-01-26 19:20:39 processing sample R16039
+2019-01-26 19:21:13 processing sample R16208
+2019-01-26 19:21:43 processing sample R16060
+2019-01-26 19:22:15 processing sample R16418
+2019-01-26 19:22:51 processing sample R16406
+2019-01-26 19:23:29 processing sample R16004
+2019-01-26 19:23:57 processing sample R16441
+2019-01-26 19:24:27 processing sample R16442
+2019-01-26 19:25:06 processing sample R16405
+2019-01-26 19:25:39 processing sample R16005
+2019-01-26 19:26:12 processing sample R16445
+2019-01-26 19:26:42 processing sample R16446
+2019-01-26 19:27:10 processing sample R16404
+2019-01-26 19:27:40 processing sample R16006
+2019-01-26 19:28:07 processing sample R16244
+2019-01-26 19:28:39 processing sample R16040
+2019-01-26 19:29:06 processing sample R16209
+2019-01-26 19:29:41 processing sample R16061
+2019-01-26 19:30:14 processing sample R16449
+2019-01-26 19:30:46 processing sample R16450
+2019-01-26 19:31:21 processing sample R16403
+2019-01-26 19:31:52 processing sample R16007
+2019-01-26 19:32:20 processing sample R16479
+2019-01-26 19:32:47 processing sample R16480
+2019-01-26 19:33:21 processing sample R16305
+2019-01-26 19:33:47 processing sample R15994
+2019-01-26 19:34:19 processing sample R16484
+2019-01-26 19:34:49 processing sample R16485
+2019-01-26 19:35:16 processing sample R16306
+2019-01-26 19:35:49 processing sample R16000
+2019-01-26 19:36:15 processing sample R16453
+2019-01-26 19:36:49 processing sample R16454
+2019-01-26 19:37:19 processing sample R16402
+2019-01-26 19:37:55 processing sample R16008
+2019-01-26 19:38:22 processing sample R16489
+2019-01-26 19:39:01 processing sample R17286
+2019-01-26 19:39:24 processing sample R16307
+2019-01-26 19:39:55 processing sample R16149
+2019-01-26 19:40:28 processing sample R16457
+2019-01-26 19:40:51 processing sample R16458
+2019-01-26 19:41:17 processing sample R16401
+2019-01-26 19:41:48 processing sample R16009
+2019-01-26 19:42:17 processing sample R16461
+2019-01-26 19:42:46 processing sample R16462
+2019-01-26 19:43:21 processing sample R16400
+2019-01-26 19:43:51 processing sample R16010
+2019-01-26 19:44:22 processing sample R16465
+2019-01-26 19:44:54 processing sample R16466
+2019-01-26 19:45:18 processing sample R16399
+2019-01-26 19:45:56 processing sample R16011
+2019-01-26 19:46:34 processing sample R16494
+2019-01-26 19:47:04 processing sample R16495
+2019-01-26 19:47:31 processing sample R16308
+2019-01-26 19:48:04 processing sample R16001
+2019-01-26 19:48:37 processing sample R16469
+2019-01-26 19:49:05 processing sample R16470
+2019-01-26 19:49:45 processing sample R16422
+2019-01-26 19:50:17 processing sample R16012
+2019-01-26 19:50:47 processing sample R16498
+2019-01-26 19:51:14 processing sample R16499
+2019-01-26 19:51:42 processing sample R16099
+2019-01-26 19:52:10 processing sample R16245
+2019-01-26 19:52:32 processing sample R16041
+2019-01-26 19:52:58 processing sample R16210
+2019-01-26 19:53:25 processing sample R16062
+2019-01-26 19:53:47 processing sample R16503
+2019-01-26 19:54:16 processing sample R16504
+2019-01-26 19:54:41 processing sample R16310
+2019-01-26 19:55:21 processing sample R16508
+2019-01-26 19:55:47 processing sample R16509
+2019-01-26 19:56:20 processing sample R16311
+2019-01-26 19:57:00 processing sample R16101
+2019-01-26 19:57:33 processing sample R16473
+2019-01-26 19:58:02 processing sample R16474
+2019-01-26 19:58:34 processing sample R16421
+2019-01-26 19:59:03 processing sample R16255
+2019-01-26 19:59:42 processing sample R16515
+2019-01-26 20:00:15 processing sample R16516
+2019-01-26 20:00:43 processing sample R17289
+2019-01-26 20:01:13 processing sample R16076
+2019-01-26 20:01:42 processing sample R16522
+2019-01-26 20:02:16 processing sample R16523
+2019-01-26 20:02:57 processing sample R16313
+2019-01-26 20:03:30 processing sample R16077
+2019-01-26 20:04:02 processing sample R16246
+2019-01-26 20:04:28 processing sample R16042
+2019-01-26 20:05:04 processing sample R16211
+2019-01-26 20:05:40 processing sample R16123
+2019-01-26 20:06:04 processing sample R16477
+2019-01-26 20:06:36 processing sample R16478
+2019-01-26 20:07:06 processing sample R16420
+2019-01-26 20:07:26 processing sample R16256
+2019-01-26 18:44:07 processing sample R16783
+2019-01-26 18:44:44 processing sample R16790
+2019-01-26 18:45:17 processing sample R15818
+2019-01-26 18:45:56 processing sample R16791
+2019-01-26 18:46:31 processing sample R16792
+2019-01-26 18:47:09 processing sample R16816
+2019-01-26 18:47:34 processing sample R16818
+2019-01-26 18:48:06 processing sample R16327
+2019-01-26 18:48:42 processing sample R16817
+2019-01-26 18:49:09 processing sample R16799
+2019-01-26 18:49:42 processing sample R15819
+2019-01-26 18:50:13 processing sample R16800
+2019-01-26 18:50:45 processing sample R16801
+2019-01-26 18:51:14 processing sample R16836
+2019-01-26 18:51:49 processing sample R16838
+2019-01-26 18:52:23 processing sample R16205
+2019-01-26 18:52:57 processing sample R16837
+2019-01-26 18:53:32 processing sample R16847
+2019-01-26 18:54:01 processing sample R16849
+2019-01-26 18:54:37 processing sample R16204
+2019-01-26 18:55:04 processing sample R16848
+2019-01-26 18:55:32 processing sample R16859
+2019-01-26 18:56:08 processing sample R16861
+2019-01-26 18:56:37 processing sample R16203
+2019-01-26 18:57:09 processing sample R16860
+2019-01-26 18:57:39 processing sample R16909
+2019-01-26 18:58:11 processing sample R16912
+2019-01-26 18:58:42 processing sample R16910
+2019-01-26 18:59:15 processing sample R16911
+2019-01-26 18:59:41 processing sample R16870
+2019-01-26 19:00:11 processing sample R16872
+2019-01-26 19:00:43 processing sample R16202
+2019-01-26 19:01:20 processing sample R16871
+2019-01-26 19:01:56 processing sample R16880
+2019-01-26 19:02:28 processing sample R16882
+2019-01-26 19:03:00 processing sample R16201
+2019-01-26 19:03:30 processing sample R16881
+2019-01-26 19:03:53 processing sample R16891
+2019-01-26 19:04:24 processing sample R16893
+2019-01-26 19:04:54 processing sample R16200
+2019-01-26 19:05:32 processing sample R16892
+2019-01-26 19:06:06 processing sample R16809
+2019-01-26 19:06:36 processing sample R15820
+2019-01-26 19:07:11 processing sample R16810
+2019-01-26 19:07:40 processing sample R16811
+2019-01-26 19:08:08 processing sample R16819
+2019-01-26 19:08:35 processing sample R15821
+2019-01-26 19:09:12 processing sample R16820
+2019-01-26 19:09:41 processing sample R16821
+2019-01-26 19:10:12 processing sample R16902
+2019-01-26 19:10:38 processing sample R16904
+2019-01-26 19:11:11 processing sample R16199
+2019-01-26 19:11:50 processing sample R16903
+2019-01-26 19:12:22 processing sample R16920
+2019-01-26 19:12:50 processing sample R16923
+2019-01-26 19:13:23 processing sample R16921
+2019-01-26 19:13:59 processing sample R16922
+2019-01-26 19:14:35 processing sample R16913
+2019-01-26 19:15:02 processing sample R16915
+2019-01-26 19:15:24 processing sample R16198
+2019-01-26 19:15:57 processing sample R16914
+2019-01-26 19:16:23 processing sample R16829
+2019-01-26 19:16:56 processing sample R15822
+2019-01-26 19:17:29 processing sample R16830
+2019-01-26 19:17:55 processing sample R17291
+2019-01-26 19:18:25 processing sample R16924
+2019-01-26 19:18:58 processing sample R16926
+2019-01-26 19:19:12 processing sample R16197
+2019-01-26 19:19:48 processing sample R16925
+2019-01-26 19:20:15 processing sample R16935
+2019-01-26 19:20:53 processing sample R16937
+2019-01-26 19:21:19 processing sample R15859
+2019-01-26 19:21:50 processing sample R16936
+2019-01-26 19:22:15 processing sample R16839
+2019-01-26 19:22:51 processing sample R16842
+2019-01-26 19:23:26 processing sample R16840
+2019-01-26 19:23:58 processing sample R16841
+2019-01-26 19:24:29 processing sample R16931
+2019-01-26 19:25:02 processing sample R16934
+2019-01-26 19:25:39 processing sample R16932
+2019-01-26 19:26:12 processing sample R16933
+2019-01-26 19:26:47 processing sample R16862
+2019-01-26 19:27:19 processing sample R16865
+2019-01-26 19:27:49 processing sample R16863
+2019-01-26 19:28:18 processing sample R16864
+2019-01-26 19:28:45 processing sample R16946
+2019-01-26 19:29:13 processing sample R16948
+2019-01-26 19:29:51 processing sample R15860
+2019-01-26 19:30:22 processing sample R16947
+2019-01-26 19:30:52 processing sample R16959
+2019-01-26 19:31:25 processing sample R16961
+2019-01-26 19:31:58 processing sample R15861
+2019-01-26 19:32:30 processing sample R16960
+2019-01-26 19:33:05 processing sample R16873
+2019-01-26 19:33:36 processing sample R16876
+2019-01-26 19:34:05 processing sample R16874
+2019-01-26 19:34:33 processing sample R16875
+2019-01-26 19:35:03 processing sample R16970
+2019-01-26 19:35:35 processing sample R16972
+2019-01-26 19:36:05 processing sample R15862
+2019-01-26 19:36:36 processing sample R16971
+2019-01-26 19:37:08 processing sample R16976
+2019-01-26 19:37:43 processing sample R16978
+2019-01-26 19:38:20 processing sample R15864
+2019-01-26 19:38:55 processing sample R16977
+2019-01-26 19:39:30 processing sample R16883
+2019-01-26 19:39:56 processing sample R16886
+2019-01-26 19:40:25 processing sample R16884
+2019-01-26 19:40:48 processing sample R16885
+2019-01-26 19:41:19 processing sample R16987
+2019-01-26 19:41:49 processing sample R16989
+2019-01-26 19:42:19 processing sample R15865
+2019-01-26 19:42:58 processing sample R16988
+2019-01-26 19:43:28 processing sample R16894
+2019-01-26 19:44:07 processing sample R16897
+2019-01-26 19:44:42 processing sample R16895
+2019-01-26 19:45:18 processing sample R16896
+2019-01-26 19:45:51 processing sample R16942
+2019-01-26 19:46:21 processing sample R16945
+2019-01-26 19:46:49 processing sample R16943
+2019-01-26 19:47:20 processing sample R16952
+2019-01-26 19:47:46 processing sample R16905
+2019-01-26 19:48:13 processing sample R16908
+2019-01-26 19:48:53 processing sample R16906
+2019-01-26 19:49:24 processing sample R16907
+2019-01-26 19:50:10 processing sample R16916
+2019-01-26 19:50:39 processing sample R16919
+2019-01-26 19:51:08 processing sample R16917
+2019-01-26 19:51:38 processing sample R16918
+2019-01-26 19:52:12 processing sample R16927
+2019-01-26 19:52:35 processing sample R16930
+2019-01-26 19:53:04 processing sample R16928
+2019-01-26 19:53:26 processing sample R16929
+2019-01-26 19:53:54 processing sample R16938
+2019-01-26 19:54:20 processing sample R16941
+2019-01-26 19:54:46 processing sample R16939
+2019-01-26 19:55:23 processing sample R16951
+2019-01-26 19:55:55 processing sample R16955
+2019-01-26 19:56:29 processing sample R16958
+2019-01-26 19:57:01 processing sample R16956
+2019-01-26 19:57:34 processing sample R16999
+2019-01-26 19:57:58 processing sample R16966
+2019-01-26 19:58:34 processing sample R16969
+2019-01-26 19:59:01 processing sample R16967
+2019-01-26 19:59:29 processing sample R17001
+2019-01-26 20:00:08 processing sample R16957
+2019-01-26 20:00:36 processing sample R16975
+2019-01-26 20:01:00 processing sample R16968
+2019-01-26 20:01:28 processing sample R16965
+2019-01-26 20:02:04 processing sample R16949
+2019-01-26 20:02:38 processing sample R16944
+2019-01-26 20:03:11 processing sample R16950
+2019-01-26 20:03:47 processing sample R16940
+2019-01-26 20:04:14 processing sample R16998
+2019-01-26 20:04:44 processing sample R17003
+2019-01-26 20:05:10 processing sample R15869
+2019-01-26 20:05:39 processing sample R17002
+2019-01-26 20:06:18 processing sample R16962
+2019-01-26 20:06:50 processing sample R17000
+2019-01-26 20:07:20 processing sample R16963
+2019-01-26 20:07:53 processing sample R16964
+2019-01-26 18:44:07 processing sample R16481
+2019-01-26 18:44:42 processing sample R16482
+2019-01-26 18:45:21 processing sample R16419
+2019-01-26 18:46:01 processing sample R16257
+2019-01-26 18:46:28 processing sample R16486
+2019-01-26 18:47:07 processing sample R16487
+2019-01-26 18:47:37 processing sample R16436
+2019-01-26 18:48:11 processing sample R16258
+2019-01-26 18:48:46 processing sample R16491
+2019-01-26 18:49:16 processing sample R16492
+2019-01-26 18:49:47 processing sample R16417
+2019-01-26 18:50:11 processing sample R16259
+2019-01-26 18:50:44 processing sample R16496
+2019-01-26 18:51:14 processing sample R16497
+2019-01-26 18:51:45 processing sample R16416
+2019-01-26 18:52:23 processing sample R16260
+2019-01-26 18:52:51 processing sample R16247
+2019-01-26 18:53:27 processing sample R16043
+2019-01-26 18:54:08 processing sample R16212
+2019-01-26 18:54:42 processing sample R16124
+2019-01-26 18:55:20 processing sample R16500
+2019-01-26 18:55:56 processing sample R16501
+2019-01-26 18:56:33 processing sample R16415
+2019-01-26 18:57:07 processing sample R16261
+2019-01-26 18:57:35 processing sample R16505
+2019-01-26 18:58:11 processing sample R16506
+2019-01-26 18:58:48 processing sample R16414
+2019-01-26 18:59:21 processing sample R16262
+2019-01-26 19:00:00 processing sample R16529
+2019-01-26 19:00:29 processing sample R16530
+2019-01-26 19:00:59 processing sample R16314
+2019-01-26 19:01:32 processing sample R16102
+2019-01-26 19:02:04 processing sample R16534
+2019-01-26 19:02:28 processing sample R16535
+2019-01-26 19:03:01 processing sample R16339
+2019-01-26 19:03:34 processing sample R16103
+2019-01-26 19:04:01 processing sample R17288
+2019-01-26 19:04:35 processing sample R16511
+2019-01-26 19:05:05 processing sample R16413
+2019-01-26 19:05:44 processing sample R16263
+2019-01-26 19:06:09 processing sample R16517
+2019-01-26 19:06:44 processing sample R16518
+2019-01-26 19:07:21 processing sample R16412
+2019-01-26 19:07:51 processing sample R16264
+2019-01-26 19:08:26 processing sample R16524
+2019-01-26 19:08:59 processing sample R16525
+2019-01-26 19:09:30 processing sample R16411
+2019-01-26 19:10:03 processing sample R16265
+2019-01-26 19:10:30 processing sample R16248
+2019-01-26 19:11:01 processing sample R16044
+2019-01-26 19:11:31 processing sample R16213
+2019-01-26 19:12:00 processing sample R16125
+2019-01-26 19:12:31 processing sample R16249
+2019-01-26 19:13:04 processing sample R16045
+2019-01-26 19:13:35 processing sample R16214
+2019-01-26 19:14:11 processing sample R16126
+2019-01-26 19:14:40 processing sample R16542
+2019-01-26 19:15:16 processing sample R16543
+2019-01-26 19:15:50 processing sample R16340
+2019-01-26 19:16:18 processing sample R16109
+2019-01-26 19:16:44 processing sample R16531
+2019-01-26 19:17:13 processing sample R16533
+2019-01-26 19:17:44 processing sample R16532
+2019-01-26 19:18:18 processing sample R16266
+2019-01-26 19:18:45 processing sample R16550
+2019-01-26 19:19:16 processing sample R16551
+2019-01-26 19:19:37 processing sample R16341
+2019-01-26 19:20:14 processing sample R16110
+2019-01-26 19:20:48 processing sample R16250
+2019-01-26 19:21:15 processing sample R16046
+2019-01-26 19:21:50 processing sample R16215
+2019-01-26 19:22:23 processing sample R16127
+2019-01-26 19:23:00 processing sample R16536
+2019-01-26 19:23:30 processing sample R16538
+2019-01-26 19:23:56 processing sample R16537
+2019-01-26 19:24:19 processing sample R16279
+2019-01-26 19:24:56 processing sample R16483
+2019-01-26 19:25:32 processing sample R16070
+2019-01-26 19:26:05 processing sample R16322
+2019-01-26 19:26:38 processing sample R16128
+2019-01-26 19:27:10 processing sample R16544
+2019-01-26 19:27:49 processing sample R16546
+2019-01-26 19:28:18 processing sample R16545
+2019-01-26 19:28:42 processing sample R16281
+2019-01-26 19:29:06 processing sample R16552
+2019-01-26 19:29:41 processing sample R16554
+2019-01-26 19:30:10 processing sample R16553
+2019-01-26 19:30:43 processing sample R16282
+2019-01-26 19:31:09 processing sample R16560
+2019-01-26 19:31:44 processing sample R16562
+2019-01-26 19:32:16 processing sample R16561
+2019-01-26 19:32:58 processing sample R16283
+2019-01-26 19:33:37 processing sample R16568
+2019-01-26 19:34:08 processing sample R16570
+2019-01-26 19:34:35 processing sample R16569
+2019-01-26 19:35:05 processing sample R16284
+2019-01-26 19:35:34 processing sample R16559
+2019-01-26 19:36:03 processing sample R16342
+2019-01-26 19:36:36 processing sample R16082
+2019-01-26 19:37:08 processing sample R16566
+2019-01-26 19:37:34 processing sample R16567
+2019-01-26 19:38:08 processing sample R16343
+2019-01-26 19:38:42 processing sample R16083
+2019-01-26 19:39:11 processing sample R16574
+2019-01-26 19:39:42 processing sample R16575
+2019-01-26 19:40:13 processing sample R16344
+2019-01-26 19:40:46 processing sample R16084
+2019-01-26 19:41:19 processing sample R16579
+2019-01-26 19:41:48 processing sample R16580
+2019-01-26 19:42:13 processing sample R16345
+2019-01-26 19:42:49 processing sample R16147
+2019-01-26 19:43:22 processing sample R16576
+2019-01-26 19:43:48 processing sample R16578
+2019-01-26 19:44:19 processing sample R16577
+2019-01-26 19:44:48 processing sample R17290
+2019-01-26 19:45:16 processing sample R16488
+2019-01-26 19:45:49 processing sample R17285
+2019-01-26 19:46:17 processing sample R16323
+2019-01-26 19:46:48 processing sample R16129
+2019-01-26 19:47:12 processing sample R16493
+2019-01-26 19:47:46 processing sample R16072
+2019-01-26 19:48:23 processing sample R16324
+2019-01-26 19:48:54 processing sample R16130
+2019-01-26 19:49:27 processing sample R16587
+2019-01-26 19:49:51 processing sample R16588
+2019-01-26 19:50:18 processing sample R16346
+2019-01-26 19:50:51 processing sample R16085
+2019-01-26 19:51:19 processing sample R16251
+2019-01-26 19:51:46 processing sample R16047
+2019-01-26 19:52:12 processing sample R16216
+2019-01-26 19:52:44 processing sample R16131
+2019-01-26 19:52:56 processing sample R16595
+2019-01-26 19:53:20 processing sample R16596
+2019-01-26 19:53:52 processing sample R16347
+2019-01-26 19:54:22 processing sample R16086
+2019-01-26 19:54:47 processing sample R16603
+2019-01-26 19:55:27 processing sample R16604
+2019-01-26 19:56:01 processing sample R16348
+2019-01-26 19:56:34 processing sample R16106
+2019-01-26 19:57:04 processing sample R16502
+2019-01-26 19:57:37 processing sample R16073
+2019-01-26 19:58:04 processing sample R16325
+2019-01-26 19:58:47 processing sample R16132
+2019-01-26 19:59:20 processing sample R16507
+2019-01-26 19:59:45 processing sample R16074
+2019-01-26 20:00:21 processing sample R16326
+2019-01-26 20:00:48 processing sample R16133
+2019-01-26 20:01:17 processing sample R16512
+2019-01-26 20:01:49 processing sample R16514
+2019-01-26 20:02:21 processing sample R17287
+2019-01-26 20:02:54 processing sample R16134
+2019-01-26 20:03:34 processing sample R16611
+2019-01-26 20:04:11 processing sample R16612
+2019-01-26 20:04:38 processing sample R16349
+2019-01-26 20:05:04 processing sample R16108
+2019-01-26 20:05:38 processing sample R16619
+2019-01-26 20:06:07 processing sample R16620
+2019-01-26 20:06:35 processing sample R16350
+2019-01-26 20:07:09 processing sample R16107
+2019-01-26 20:07:44 processing sample R16581
+2019-01-26 20:08:19 processing sample R16583
+2019-01-26 18:44:06 processing sample R16254
+2019-01-26 18:44:41 processing sample R16050
+2019-01-26 18:45:12 processing sample R16315
+2019-01-26 18:45:49 processing sample R16015
+2019-01-26 18:46:22 processing sample R15943
+2019-01-26 18:46:52 processing sample R15823
+2019-01-26 18:47:27 processing sample R15787
+2019-01-26 18:48:00 processing sample R16016
+2019-01-26 18:48:29 processing sample R15944
+2019-01-26 18:49:00 processing sample R15824
+2019-01-26 18:49:31 processing sample R15788
+2019-01-26 18:50:03 processing sample R16017
+2019-01-26 18:50:38 processing sample R15945
+2019-01-26 18:51:13 processing sample R15825
+2019-01-26 18:51:41 processing sample R15789
+2019-01-26 18:52:20 processing sample R16018
+2019-01-26 18:52:55 processing sample R15946
+2019-01-26 18:53:32 processing sample R15826
+2019-01-26 18:54:17 processing sample R17281
+2019-01-26 18:54:50 processing sample R16019
+2019-01-26 18:55:30 processing sample R15947
+2019-01-26 18:55:59 processing sample R15827
+2019-01-26 18:56:37 processing sample R15791
+2019-01-26 18:57:13 processing sample R16020
+2019-01-26 18:57:56 processing sample R15948
+2019-01-26 18:58:28 processing sample R15828
+2019-01-26 18:59:09 processing sample R15792
+2019-01-26 18:59:47 processing sample R16021
+2019-01-26 19:00:20 processing sample R15949
+2019-01-26 19:00:43 processing sample R15829
+2019-01-26 19:01:18 processing sample R15793
+2019-01-26 19:01:59 processing sample R16022
+2019-01-26 19:02:37 processing sample R15871
+2019-01-26 19:03:14 processing sample R15919
+2019-01-26 19:03:46 processing sample R15847
+2019-01-26 19:04:18 processing sample R15997
+2019-01-26 19:04:44 processing sample R15950
+2019-01-26 19:05:14 processing sample R15830
+2019-01-26 19:05:43 processing sample R15794
+2019-01-26 19:06:14 processing sample R16023
+2019-01-26 19:06:53 processing sample R15872
+2019-01-26 19:07:29 processing sample R15920
+2019-01-26 19:08:07 processing sample R15848
+2019-01-26 19:08:38 processing sample R15883
+2019-01-26 19:09:13 processing sample R15873
+2019-01-26 19:09:53 processing sample R15921
+2019-01-26 19:10:22 processing sample R15849
+2019-01-26 19:10:50 processing sample R15884
+2019-01-26 19:11:21 processing sample R15874
+2019-01-26 19:11:58 processing sample R15922
+2019-01-26 19:12:31 processing sample R15850
+2019-01-26 19:13:02 processing sample R15995
+2019-01-26 19:13:31 processing sample R15875
+2019-01-26 19:14:11 processing sample R15923
+2019-01-26 19:14:51 processing sample R15851
+2019-01-26 19:15:20 processing sample R15996
+2019-01-26 19:15:53 processing sample R15951
+2019-01-26 19:16:28 processing sample R15835
+2019-01-26 19:16:57 processing sample R15795
+2019-01-26 19:17:30 processing sample R16024
+2019-01-26 19:18:02 processing sample R15876
+2019-01-26 19:18:35 processing sample R15924
+2019-01-26 19:19:03 processing sample R15852
+2019-01-26 19:19:12 processing sample R15885
+2019-01-26 19:19:33 processing sample R15877
+2019-01-26 19:20:10 processing sample R15925
+2019-01-26 19:20:39 processing sample R15853
+2019-01-26 19:21:04 processing sample R15998
+2019-01-26 19:21:31 processing sample R16381
+2019-01-26 19:21:58 processing sample R16063
+2019-01-26 19:22:24 processing sample R16316
+2019-01-26 19:22:52 processing sample R16025
+2019-01-26 19:23:32 processing sample R15878
+2019-01-26 19:24:00 processing sample R15926
+2019-01-26 19:24:36 processing sample R15854
+2019-01-26 19:25:10 processing sample R16375
+2019-01-26 19:25:38 processing sample R16382
+2019-01-26 19:26:11 processing sample R16064
+2019-01-26 19:26:43 processing sample R16317
+2019-01-26 19:27:20 processing sample R17282
+2019-01-26 19:27:55 processing sample R15879
+2019-01-26 19:28:30 processing sample R15927
+2019-01-26 19:29:02 processing sample R15855
+2019-01-26 19:29:39 processing sample R16376
+2019-01-26 19:30:15 processing sample R16383
+2019-01-26 19:30:47 processing sample R16065
+2019-01-26 19:31:19 processing sample R16318
+2019-01-26 19:31:53 processing sample R17283
+2019-01-26 19:32:26 processing sample R16378
+2019-01-26 19:33:01 processing sample R16380
+2019-01-26 19:33:29 processing sample R16379
+2019-01-26 19:34:05 processing sample R16377
+2019-01-26 19:34:31 processing sample R15931
+2019-01-26 19:35:09 processing sample R16087
+2019-01-26 19:35:40 processing sample R16362
+2019-01-26 19:36:09 processing sample R15895
+2019-01-26 19:36:42 processing sample R15952
+2019-01-26 19:37:14 processing sample R15836
+2019-01-26 19:37:50 processing sample R15796
+2019-01-26 19:38:28 processing sample R16028
+2019-01-26 19:38:58 processing sample R15933
+2019-01-26 19:39:31 processing sample R16089
+2019-01-26 19:40:02 processing sample R16361
+2019-01-26 19:40:35 processing sample R15897
+2019-01-26 19:41:09 processing sample R15934
+2019-01-26 19:41:38 processing sample R16090
+2019-01-26 19:42:11 processing sample R16360
+2019-01-26 19:42:50 processing sample R15898
+2019-01-26 19:43:21 processing sample R15880
+2019-01-26 19:43:45 processing sample R15928
+2019-01-26 19:44:07 processing sample R15856
+2019-01-26 19:44:44 processing sample R15886
+2019-01-26 19:45:13 processing sample R15881
+2019-01-26 19:45:46 processing sample R15929
+2019-01-26 19:46:14 processing sample R15857
+2019-01-26 19:46:48 processing sample R15887
+2019-01-26 19:47:18 processing sample R16384
+2019-01-26 19:47:45 processing sample R16066
+2019-01-26 19:48:13 processing sample R16319
+2019-01-26 19:48:40 processing sample R16029
+2019-01-26 19:49:14 processing sample R15882
+2019-01-26 19:49:40 processing sample R15930
+2019-01-26 19:50:04 processing sample R15858
+2019-01-26 19:50:33 processing sample R15888
+2019-01-26 19:51:06 processing sample R15936
+2019-01-26 19:51:37 processing sample R16092
+2019-01-26 19:52:15 processing sample R16359
+2019-01-26 19:52:44 processing sample R15900
+2019-01-26 19:52:57 processing sample R15937
+2019-01-26 19:53:24 processing sample R16093
+2019-01-26 19:53:47 processing sample R16358
+2019-01-26 19:54:25 processing sample R15901
+2019-01-26 19:54:55 processing sample R15939
+2019-01-26 19:55:38 processing sample R16095
+2019-01-26 19:56:11 processing sample R16357
+2019-01-26 19:56:43 processing sample R15903
+2019-01-26 19:57:24 processing sample R15953
+2019-01-26 19:57:44 processing sample R15837
+2019-01-26 19:58:16 processing sample R15797
+2019-01-26 19:58:52 processing sample R16030
+2019-01-26 19:59:26 processing sample R15940
+2019-01-26 19:59:58 processing sample R16096
+2019-01-26 20:00:32 processing sample R16356
+2019-01-26 20:01:05 processing sample R15904
+2019-01-26 20:01:36 processing sample R15941
+2019-01-26 20:02:10 processing sample R16097
+2019-01-26 20:02:51 processing sample R16355
+2019-01-26 20:03:22 processing sample R15905
+2019-01-26 20:03:47 processing sample R16159
+2019-01-26 20:04:20 processing sample R16171
+2019-01-26 20:04:48 processing sample R15955
+2019-01-26 20:05:25 processing sample R15889
+2019-01-26 20:06:03 processing sample R16231
+2019-01-26 20:06:40 processing sample R16111
+2019-01-26 20:07:10 processing sample R16354
+2019-01-26 20:07:41 processing sample R15907
+2019-01-26 20:08:16 processing sample R16160
+2019-01-26 20:08:49 processing sample R16172
+2019-01-26 20:09:18 processing sample R15956
+2019-01-26 20:09:48 processing sample R15890
+2019-01-26 18:44:07 processing sample R16582
+2019-01-26 18:44:44 processing sample R16286
+2019-01-26 18:45:17 processing sample R16628
+2019-01-26 18:45:48 processing sample R16630
+2019-01-26 18:46:18 processing sample R16629
+2019-01-26 18:46:50 processing sample R16104
+2019-01-26 18:47:18 processing sample R16638
+2019-01-26 18:47:51 processing sample R16640
+2019-01-26 18:48:27 processing sample R16639
+2019-01-26 18:48:55 processing sample R16105
+2019-01-26 18:49:31 processing sample R16648
+2019-01-26 18:50:03 processing sample R16650
+2019-01-26 18:50:31 processing sample R16649
+2019-01-26 18:51:02 processing sample R16148
+2019-01-26 18:51:40 processing sample R16589
+2019-01-26 18:52:16 processing sample R16591
+2019-01-26 18:52:40 processing sample R16590
+2019-01-26 18:53:14 processing sample R16287
+2019-01-26 18:53:47 processing sample R16519
+2019-01-26 18:54:14 processing sample R16521
+2019-01-26 18:54:48 processing sample R16520
+2019-01-26 18:55:13 processing sample R16267
+2019-01-26 18:55:46 processing sample R16597
+2019-01-26 18:56:17 processing sample R16599
+2019-01-26 18:56:58 processing sample R16598
+2019-01-26 18:57:36 processing sample R16288
+2019-01-26 18:58:11 processing sample R16658
+2019-01-26 18:58:41 processing sample R16660
+2019-01-26 18:59:19 processing sample R16659
+2019-01-26 19:00:00 processing sample R16154
+2019-01-26 19:00:45 processing sample R16605
+2019-01-26 19:01:20 processing sample R16607
+2019-01-26 19:01:59 processing sample R16606
+2019-01-26 19:02:32 processing sample R16289
+2019-01-26 19:03:16 processing sample R16526
+2019-01-26 19:03:47 processing sample R16528
+2019-01-26 19:04:19 processing sample R16527
+2019-01-26 19:04:47 processing sample R16268
+2019-01-26 19:05:22 processing sample R16668
+2019-01-26 19:05:56 processing sample R16670
+2019-01-26 19:06:24 processing sample R16669
+2019-01-26 19:06:56 processing sample R16150
+2019-01-26 19:07:26 processing sample R16678
+2019-01-26 19:08:01 processing sample R16680
+2019-01-26 19:08:37 processing sample R16679
+2019-01-26 19:09:13 processing sample R16155
+2019-01-26 19:09:45 processing sample R16252
+2019-01-26 19:10:13 processing sample R16048
+2019-01-26 19:10:48 processing sample R16217
+2019-01-26 19:11:16 processing sample R16269
+2019-01-26 19:11:53 processing sample R16688
+2019-01-26 19:12:21 processing sample R16690
+2019-01-26 19:12:54 processing sample R16689
+2019-01-26 19:13:34 processing sample R16156
+2019-01-26 19:14:06 processing sample R16698
+2019-01-26 19:14:36 processing sample R16700
+2019-01-26 19:15:10 processing sample R16699
+2019-01-26 19:15:46 processing sample R16157
+2019-01-26 19:16:24 processing sample R16539
+2019-01-26 19:17:00 processing sample R16541
+2019-01-26 19:17:36 processing sample R16540
+2019-01-26 19:18:08 processing sample R16270
+2019-01-26 19:18:39 processing sample R16613
+2019-01-26 19:19:07 processing sample R16615
+2019-01-26 19:19:33 processing sample R16614
+2019-01-26 19:20:10 processing sample R16290
+2019-01-26 19:20:51 processing sample R16708
+2019-01-26 19:21:16 processing sample R16710
+2019-01-26 19:21:41 processing sample R16709
+2019-01-26 19:22:10 processing sample R16158
+2019-01-26 19:22:50 processing sample R16547
+2019-01-26 19:23:20 processing sample R16549
+2019-01-26 19:23:50 processing sample R16548
+2019-01-26 19:24:25 processing sample R16278
+2019-01-26 19:24:53 processing sample R16717
+2019-01-26 19:25:24 processing sample R16719
+2019-01-26 19:25:56 processing sample R16718
+2019-01-26 19:26:26 processing sample R16151
+2019-01-26 19:27:02 processing sample R16555
+2019-01-26 19:27:37 processing sample R16557
+2019-01-26 19:28:01 processing sample R16556
+2019-01-26 19:28:24 processing sample R16272
+2019-01-26 19:28:49 processing sample R16726
+2019-01-26 19:29:20 processing sample R16729
+2019-01-26 19:29:48 processing sample R16727
+2019-01-26 19:30:24 processing sample R16728
+2019-01-26 19:30:58 processing sample R16563
+2019-01-26 19:31:29 processing sample R16565
+2019-01-26 19:32:04 processing sample R16564
+2019-01-26 19:32:39 processing sample R16273
+2019-01-26 19:33:07 processing sample R16736
+2019-01-26 19:33:36 processing sample R16738
+2019-01-26 19:34:09 processing sample R16737
+2019-01-26 19:34:43 processing sample R16152
+2019-01-26 19:35:10 processing sample R16571
+2019-01-26 19:35:39 processing sample R16573
+2019-01-26 19:36:17 processing sample R16572
+2019-01-26 19:36:47 processing sample R16274
+2019-01-26 19:37:25 processing sample R16745
+2019-01-26 19:37:58 processing sample R16747
+2019-01-26 19:38:22 processing sample R16746
+2019-01-26 19:38:52 processing sample R16153
+2019-01-26 19:39:28 processing sample R16754
+2019-01-26 19:40:02 processing sample R16757
+2019-01-26 19:40:34 processing sample R16755
+2019-01-26 19:41:00 processing sample R16756
+2019-01-26 19:41:29 processing sample R16049
+2019-01-26 19:42:07 processing sample R16218
+2019-01-26 19:42:39 processing sample R16621
+2019-01-26 19:43:20 processing sample R16624
+2019-01-26 19:43:57 processing sample R16622
+2019-01-26 19:44:27 processing sample R16623
+2019-01-26 19:44:56 processing sample R16584
+2019-01-26 19:45:27 processing sample R16586
+2019-01-26 19:45:54 processing sample R16585
+2019-01-26 19:46:21 processing sample R16276
+2019-01-26 19:46:43 processing sample R16764
+2019-01-26 19:47:19 processing sample R16766
+2019-01-26 19:47:53 processing sample R16774
+2019-01-26 19:48:25 processing sample R16777
+2019-01-26 19:49:10 processing sample R16775
+2019-01-26 19:49:42 processing sample R16784
+2019-01-26 19:50:17 processing sample R16786
+2019-01-26 19:50:51 processing sample R16785
+2019-01-26 19:51:26 processing sample R16002
+2019-01-26 19:51:57 processing sample R16793
+2019-01-26 19:52:31 processing sample R16795
+2019-01-26 19:53:04 processing sample R16794
+2019-01-26 19:53:32 processing sample R16075
+2019-01-26 19:53:57 processing sample R16802
+2019-01-26 19:54:29 processing sample R16805
+2019-01-26 19:55:08 processing sample R16803
+2019-01-26 19:55:44 processing sample R16804
+2019-01-26 19:56:16 processing sample R16592
+2019-01-26 19:56:43 processing sample R16594
+2019-01-26 19:57:23 processing sample R16593
+2019-01-26 19:57:53 processing sample R16277
+2019-01-26 19:58:25 processing sample R16600
+2019-01-26 19:58:54 processing sample R16602
+2019-01-26 19:59:29 processing sample R16601
+2019-01-26 19:59:58 processing sample R16271
+2019-01-26 20:00:27 processing sample R16812
+2019-01-26 20:01:00 processing sample R16815
+2019-01-26 20:01:34 processing sample R16813
+2019-01-26 20:02:07 processing sample R16831
+2019-01-26 20:02:41 processing sample R16822
+2019-01-26 20:03:04 processing sample R16825
+2019-01-26 20:03:33 processing sample R16823
+2019-01-26 20:04:07 processing sample R16824
+2019-01-26 20:04:34 processing sample R16832
+2019-01-26 20:04:57 processing sample R16835
+2019-01-26 20:05:35 processing sample R16833
+2019-01-26 20:06:07 processing sample R16834
+2019-01-26 20:06:47 processing sample R16843
+2019-01-26 20:07:13 processing sample R16846
+2019-01-26 20:07:44 processing sample R16844
+2019-01-26 20:08:14 processing sample R16855
+2019-01-26 20:08:51 processing sample R16631
+2019-01-26 20:09:31 processing sample R16634
+2019-01-26 20:09:57 processing sample R16632
+> covReverse$bigwig_path = NULL
+> covReverse$bigwig_file = NULL
+> 
+> ## combine
+> cov_rse = rbind(covForward, covReverse)	
+> rownames(cov_rse) = rowData(cov_rse)$name
+> cov_rse = cov_rse[regs$name,]
+> 
+> ## divide by number of reads
+> assays(cov_rse)$counts = assays(cov_rse)$counts/100 # divide by read length
+> 
+> ## make positive
+> assays(cov_rse)$counts = abs(assays(cov_rse)$counts) 
+> 
+> save(cov_rse, file = 'rdas/degradation_rse_PTSD_usingJoint.rda')
+> 
+> q()
+> proc.time()
+     user    system   elapsed 
+34320.797  2954.148 40225.444 

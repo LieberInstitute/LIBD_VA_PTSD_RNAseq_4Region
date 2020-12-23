@@ -1,0 +1,662 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##############################################
+> ###MedialAmyg
+> ##############################################
+> library(jaffelab)
+Loading required package: rafalib
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> library('readxl')
+> library('devtools')
+Loading required package: usethis
+
+Attaching package: ‘devtools’
+
+The following object is masked from ‘package:rafalib’:
+
+    install_bioc
+
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(limma)
+
+Attaching package: ‘limma’
+
+The following object is masked from ‘package:BiocGenerics’:
+
+    plotMA
+
+> library(edgeR)
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> #load rse objects
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> load('rdas/rse_exon_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> load('rdas/rse_jx_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> load('rdas/rse_tx_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> 
+> #gene
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> #exon
+> colData(rse_exon) = cbind(colData(rse_exon) , mds[rse_exon$BrNum,])
+> #junction
+> colData(rse_jx) = cbind(colData(rse_jx) , mds[rse_jx$BrNum,])
+> #transcript
+> colData(rse_tx) = cbind(colData(rse_tx) , mds[rse_tx$BrNum,])
+> 
+> #gene
+> gKeep<-filterByExpr(assays(rse_gene)$counts)
+> rse_gene <- rse_gene[gKeep , ]
+> #exon
+> eKeep<-filterByExpr(assays(rse_exon)$counts)
+> rse_exon <- rse_exon[eKeep , ]
+> #junction, higher threshold to keep 
+> jKeep = filterByExpr(assays(rse_jx)$counts) & rowData(rse_jx)$Class != "Novel"
+> rse_jx <- rse_jx[jKeep , ]
+> #transcripts
+> #since transcript analysis produces tpm, we won't use filterByExpr. let's just try a different filtering threshold.
+> #this actually results in fewer genes being dropped than before
+> tKeep = rowSums(assays(rse_tx)$tpm > 0.5) >=2
+> rse_tx <- rse_tx[tKeep , ]
+> 
+> load('rdas/PTSD_qsvs_filterByExpr.Rdata',verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSVs
+  mod
+  modQsva
+> 
+> #filter for MedialAmyg 
+> #gene
+> keepIndex = which(rse_gene$Region == "MedialAmyg")
+> rse_gene <- rse_gene[, keepIndex]
+> #exon
+> rse_exon <- rse_exon[, keepIndex]
+> #junction
+> rse_jx <- rse_jx[, keepIndex]
+> #transcript
+> rse_tx <- rse_tx[, keepIndex]
+> 
+> #Get rid of region columns
+> colIndex <-  !grepl("Region", colnames(mod))
+> mod <- mod[keepIndex, colIndex]
+> modQsva <- modQsva[keepIndex,!grepl("Region", colnames(modQsva))]
+> 
+> ##### GENE ######
+> 
+> dge = DGEList(counts = assays(rse_gene)$counts,
++ 	genes = rowData(rse_gene))
+> 
+> #calculate library-size adjustment
+> dge = calcNormFactors(dge)
+> vGene = voom(dge,modQsva, plot=TRUE)
+> fitGene = lmFit(vGene)
+> eBGene = eBayes(fitGene)
+> 
+> #MDD vs controls (analysis 1)
+> sigGeneMDD = topTable(eBGene,coef=2,
++ 	p.value = 1,number=nrow(rse_gene), sort="none")
+> colnames(sigGeneMDD) = paste0(colnames(sigGeneMDD), "_MDD")
+> 
+> #PTSD vs controls (analysis 1)
+> sigGenePTSD = topTable(eBGene,coef=3,
++ 	p.value = 1,number=nrow(rse_gene), sort="none")
+> colnames(sigGenePTSD) = paste0(colnames(sigGenePTSD), "_PTSD")
+> 
+> #Interaction (analysis 3)
+> sigGeneDx = topTable(eBGene,coef=2:3,
++ 	p.value = 1,number=nrow(rse_gene), sort="none")
+> colnames(sigGeneDx) = paste0(colnames(sigGeneDx), "_ANOVA")
+> 
+> #PTSDvsMDD using limma
+> PTSDvsMDDContrast <- makeContrasts(GroupPTSD-GroupMDD,levels=modQsva)
+> PTSDvsMDDPostGene = topTable(eBayes(contrasts.fit(fitGene, PTSDvsMDDContrast)),
++     coef=1,  p.value = 1, sort="none", n = nrow(rse_gene))
+> colnames(PTSDvsMDDPostGene) = paste0(colnames(PTSDvsMDDPostGene), "_PTSDvsMDD")
+> 
+> ##### EXON ######
+> 
+> dee = DGEList(counts = assays(rse_exon)$counts,
++ 	genes = rowData(rse_exon))
+> dee = calcNormFactors(dee)
+> vExon = voom(dee,modQsva, plot=TRUE)
+> fitExon = lmFit(vExon)
+> eBExon = eBayes(fitExon)
+> 
+> #MDD vs controls (analysis 1)
+> sigExonMDD = topTable(eBExon,coef=2,
++ 	p.value = 1,number=nrow(rse_exon), sort="none")
+> colnames(sigExonMDD) = paste0(colnames(sigExonMDD), "_MDD")
+> 
+> #PTSD vs controls (analysis 1)
+> sigExonPTSD = topTable(eBExon,coef=3,
++ 	p.value = 1,number=nrow(rse_exon), sort="none")
+> colnames(sigExonPTSD) = paste0(colnames(sigExonPTSD), "_PTSD")
+> 
+> #Interaction (analysis 3)
+> sigExonDx = topTable(eBExon,coef=2:3,
++ 	p.value = 1,number=nrow(rse_exon), sort="none")
+> colnames(sigExonDx) = paste0(colnames(sigExonDx), "_ANOVA")
+> 
+> #PTSDvsMDD using limma
+> PTSDvsMDDContrast <- makeContrasts(GroupPTSD-GroupMDD,levels=modQsva)
+> PTSDvsMDDPostExon = topTable(eBayes(contrasts.fit(fitExon, PTSDvsMDDContrast)),
++     coef=1,  p.value = 1, sort="none", n = nrow(rse_exon))
+> colnames(PTSDvsMDDPostExon) = paste0(colnames(PTSDvsMDDPostExon), "_PTSDvsMDD")
+> 
+> 
+> ##### JUNCTION ######
+> 
+> dje = DGEList(counts = assays(rse_jx)$counts,
++ 	genes = rowData(rse_jx))
+> dje = calcNormFactors(dje)
+> vJxn = voom(dje,modQsva, plot=TRUE)
+> fitJxn = lmFit(vJxn)
+> eBJxn = eBayes(fitJxn)
+> 
+> 
+> #MDD vs controls (analysis 1)
+> sigJxnMDD = topTable(eBJxn,coef=2,
++ 	p.value = 1,number=nrow(rse_jx), sort="none")
+> colnames(sigJxnMDD) = paste0(colnames(sigJxnMDD), "_MDD")
+> 
+> #PTSD vs controls (analysis 1)
+> sigJxnPTSD = topTable(eBJxn,coef=3,
++ 	p.value = 1,number=nrow(rse_jx), sort="none")
+> colnames(sigJxnPTSD) = paste0(colnames(sigJxnPTSD), "_PTSD")
+> 
+> #Interaction (analysis 3)
+> sigJxnDx = topTable(eBJxn,coef=2:3,
++ 	p.value = 1,number=nrow(rse_jx), sort="none")
+> colnames(sigJxnDx) = paste0(colnames(sigJxnDx), "_ANOVA")
+> 
+> #PTSDvsMDD using limma
+> PTSDvsMDDContrast <- makeContrasts(GroupPTSD-GroupMDD,levels=modQsva)
+> PTSDvsMDDPostJxn = topTable(eBayes(contrasts.fit(fitJxn, PTSDvsMDDContrast)),
++     coef=1,  p.value = 1, sort="none", n = nrow(rse_jx))
+> colnames(PTSDvsMDDPostJxn) = paste0(colnames(PTSDvsMDDPostJxn), "_PTSDvsMDD")
+> 
+> 
+> ##### TRANSCRIPT ######
+> 
+> fitTx = lmFit(log2(assays(rse_tx)$tpm + 1), modQsva)
+> eBTx = eBayes(fitTx)
+Warning message:
+Zero sample variances detected, have been offset away from zero 
+> 
+> 
+> #MDD vs controls (analysis 1)
+> sigTxMDD = topTable(eBTx,coef=2,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxMDD) = paste0(colnames(sigTxMDD), "_MDD")
+> 
+> #PTSD vs controls (analysis 1)
+> sigTxPTSD = topTable(eBTx,coef=3,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxPTSD) = paste0(colnames(sigTxPTSD), "_PTSD")
+> 
+> #Interaction (analysis 3)
+> sigTxDx = topTable(eBTx,coef=2:3,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxDx) = paste0(colnames(sigTxDx), "_ANOVA")
+> 
+> #PTSDvsMDD using limma
+> PTSDvsMDDContrast <- makeContrasts(GroupPTSD-GroupMDD,levels=modQsva)
+> PTSDvsMDDPostTx = topTable(eBayes(contrasts.fit(fitTx, PTSDvsMDDContrast)),
++     coef=1,  p.value = 1, genelist = rowRanges(rse_tx), sort="none", n = nrow(rse_tx))
+Warning message:
+Zero sample variances detected, have been offset away from zero 
+> colnames(PTSDvsMDDPostTx) = paste0(colnames(PTSDvsMDDPostTx), "_PTSDvsMDD")
+> 
+> 
+> 
+> #onlyPTSD analysis (analysis 2)
+> # 1. redefine model
+> # 2. add to geneStats
+> 
+> #load rse objects
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> load('rdas/rse_exon_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> load('rdas/rse_jx_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> load('rdas/rse_tx_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> 
+> #Define by PTSD 
+> rse_gene$onlyPTSD = ifelse(rse_gene$Group == "PTSD" ,1, 0) 
+> rse_exon$onlyPTSD = ifelse(rse_exon$Group == "PTSD" ,1, 0) 
+> rse_jx$onlyPTSD = ifelse(rse_jx$Group == "PTSD" ,1, 0) 
+> rse_tx$onlyPTSD = ifelse(rse_tx$Group == "PTSD" ,1, 0) 
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> 
+> #gene
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> #exon
+> colData(rse_exon) = cbind(colData(rse_exon) , mds[rse_exon$BrNum,])
+> #junction
+> colData(rse_jx) = cbind(colData(rse_jx) , mds[rse_jx$BrNum,])
+> #transcript
+> colData(rse_tx) = cbind(colData(rse_tx) , mds[rse_tx$BrNum,])
+> 
+> #gene
+> gKeep<-filterByExpr(assays(rse_gene)$counts)
+> rse_gene <- rse_gene[gKeep , ]
+> #exon
+> eKeep<-filterByExpr(assays(rse_exon)$counts)
+> rse_exon <- rse_exon[eKeep , ]
+> #junction, higher threshold to keep 
+> jKeep = filterByExpr(assays(rse_jx)$counts) & rowData(rse_jx)$Class != "Novel"
+> rse_jx <- rse_jx[jKeep , ]
+> #transcripts
+> #since transcript analysis produces tpm, we won't use filterByExpr. let's just try a different filtering threshold.
+> #this actually results in fewer genes being dropped than before
+> tKeep = rowSums(assays(rse_tx)$tpm > 0.5) >=2
+> rse_tx <- rse_tx[tKeep , ]
+> 
+> load('rdas/PTSD_onlyPTSD_qsvs_filterByExpr.Rdata',verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSVs
+  mod
+  modQsva
+> 
+> #filter for MedialAmyg 
+> #gene
+> keepIndex = which(rse_gene$Region == "MedialAmyg")
+> rse_gene <- rse_gene[, keepIndex]
+> #exon
+> rse_exon <- rse_exon[, keepIndex]
+> #junction
+> rse_jx <- rse_jx[, keepIndex]
+> #transcript
+> rse_tx <- rse_tx[, keepIndex]
+> 
+> #Get rid of region columns
+> colIndex <-  !grepl("Region", colnames(mod))
+> mod <- mod[keepIndex, colIndex]
+> modQsva <- modQsva[keepIndex,!grepl("Region", colnames(modQsva))]
+> 
+> ##### GENE ######
+> dge = DGEList(counts = assays(rse_gene)$counts,
++ 	genes = rowData(rse_gene))
+> #calculate library-size adjustment
+> dge = calcNormFactors(dge)
+> vGene = voom(dge,modQsva, plot=TRUE)
+> fitGene = lmFit(vGene)
+> eBGene = eBayes(fitGene)
+> 
+> #PTSD only
+> sigGeneonlyPTSD = topTable(eBGene,coef=2,
++ 	p.value = 1,number=nrow(rse_gene), sort="none")
+> colnames(sigGeneonlyPTSD) = paste0(colnames(sigGeneonlyPTSD), "_onlyPTSD")
+> 
+> 
+> ##### EXON ######
+> 
+> dee = DGEList(counts = assays(rse_exon)$counts,
++ 	genes = rowData(rse_exon))
+> dee = calcNormFactors(dee)
+> vExon = voom(dee,modQsva, plot=TRUE)
+> fitExon = lmFit(vExon)
+> eBExon = eBayes(fitExon)
+> 
+> #PTSD only
+> sigExononlyPTSD = topTable(eBExon,coef=2,
++ 	p.value = 1,number=nrow(rse_exon), sort="none")
+> colnames(sigExononlyPTSD) = paste0(colnames(sigExononlyPTSD), "_onlyPTSD")
+> 
+> 
+> ##### JUNCTION ######
+> 
+> dje = DGEList(counts = assays(rse_jx)$counts,
++ 	genes = rowData(rse_jx))
+> dje = calcNormFactors(dje)
+> vJxn = voom(dje,modQsva, plot=TRUE)
+> fitJxn = lmFit(vJxn)
+> eBJxn = eBayes(fitJxn)
+> 
+> 
+> #PTSD only
+> sigJxnonlyPTSD = topTable(eBJxn,coef=2,
++ 	p.value = 1,number=nrow(rse_jx), sort="none")
+> colnames(sigJxnonlyPTSD) = paste0(colnames(sigJxnonlyPTSD), "_onlyPTSD")
+> 
+> 
+> ##### TRANSCRIPT ######
+> 
+> fitTx = lmFit(log2(assays(rse_tx)$tpm + 1), modQsva)
+> eBTx = eBayes(fitTx)
+Warning message:
+Zero sample variances detected, have been offset away from zero 
+> 
+> 
+> #PTSD only
+> sigTxonlyPTSD = topTable(eBTx,coef=2,
++ 	p.value = 1,number=nrow(rse_tx), genelist = rowRanges(rse_tx), sort="none")
+> colnames(sigTxonlyPTSD) = paste0(colnames(sigTxonlyPTSD), "_onlyPTSD")
+> 
+> 
+> ###Stuff we want
+> 
+> ###### GENE ########
+> 
+> #All columns
+> geneStatsall = cbind(sigGenePTSD, sigGeneMDD, sigGeneDx, sigGeneonlyPTSD, PTSDvsMDDPostGene)
+> geneStatsall = cbind(geneStatsall, rowData(rse_gene))
+> ## write out qSVA-based stats
+> geneStats_MedialAmygall = geneStatsall
+> save(geneStats_MedialAmygall, file = "rdas/MedialAmyg/geneStats_allcols_DE_qSVA_filterByExpr_MedialAmyg_threeGroup.rda")
+> 
+> ###### EXON ########
+> 
+> #All columns
+> exonStatsall = cbind(sigExonPTSD, sigExonMDD, sigExonDx, sigExononlyPTSD, PTSDvsMDDPostExon)
+> exonStatsall = cbind(exonStatsall, rowData(rse_exon))
+> ## write out qSVA-based stats
+> exonStats_MedialAmygall = exonStatsall
+> save(exonStats_MedialAmygall, file = "rdas/MedialAmyg/exonStats_allcols_DE_qSVA_filterByExpr_MedialAmyg_threeGroup.rda")
+> 
+> 
+> ###### JUNCTION ########
+> 
+> #All columns
+> jxnStatsall = cbind(sigJxnPTSD, sigJxnMDD, sigJxnDx, sigJxnonlyPTSD, PTSDvsMDDPostJxn)
+> jxnStatsall = cbind(jxnStatsall, rowData(rse_jx))
+> ## write out qSVA-based stats
+> jxnStats_MedialAmygall = jxnStatsall
+> save(jxnStats_MedialAmygall, file = "rdas/MedialAmyg/jxStats_allcols_DE_qSVA_filterByExpr_MedialAmyg_threeGroup.rda")
+> 
+> ####### TRANSCRIPT ########
+> 
+> #All columns
+> txStatsall = cbind(sigTxPTSD, sigTxMDD, sigTxDx, sigTxonlyPTSD, PTSDvsMDDPostTx)
+> txStatsall = cbind(txStatsall, rowData(rse_tx))
+> ## write out qSVA-based stats
+> txStats_MedialAmygall = txStatsall
+> save(txStats_MedialAmygall, file = "rdas/MedialAmyg/txStats_allcols_DE_qSVA_filterByExpr_MedialAmyg_threeGroup.rda")
+> 
+> ## Reproducibility information
+> print('Reproducibility information:')
+[1] "Reproducibility information:"
+> Sys.time()
+[1] "2020-02-05 23:40:37 EST"
+> proc.time()
+    user   system  elapsed 
+2958.008  220.296 3191.361 
+> options(width = 120)
+> session_info()
+─ Session info ───────────────────────────────────────────────────────────────────────────────────────────────────────
+ setting  value                                      
+ version  R version 3.6.1 Patched (2019-10-31 r77350)
+ os       CentOS Linux 7 (Core)                      
+ system   x86_64, linux-gnu                          
+ ui       X11                                        
+ language (EN)                                       
+ collate  en_US.UTF-8                                
+ ctype    en_US.UTF-8                                
+ tz       US/Eastern                                 
+ date     2020-02-05                                 
+
+─ Packages ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+ package              * version   date       lib source                                   
+ acepack                1.4.1     2016-10-29 [2] CRAN (R 3.6.1)                           
+ annotate               1.64.0    2019-10-29 [2] Bioconductor                             
+ AnnotationDbi          1.48.0    2019-10-29 [2] Bioconductor                             
+ askpass                1.1       2019-01-13 [2] CRAN (R 3.6.1)                           
+ assertthat             0.2.1     2019-03-21 [2] CRAN (R 3.6.1)                           
+ backports              1.1.5     2019-10-02 [2] CRAN (R 3.6.1)                           
+ base64enc              0.1-3     2015-07-28 [2] CRAN (R 3.6.1)                           
+ bibtex                 0.4.2     2017-06-30 [2] CRAN (R 3.6.1)                           
+ Biobase              * 2.46.0    2019-10-29 [2] Bioconductor                             
+ BiocFileCache          1.10.2    2019-11-08 [2] Bioconductor                             
+ BiocGenerics         * 0.32.0    2019-10-29 [2] Bioconductor                             
+ BiocParallel         * 1.20.0    2019-10-30 [2] Bioconductor                             
+ biomaRt                2.42.0    2019-10-29 [2] Bioconductor                             
+ Biostrings             2.54.0    2019-10-29 [2] Bioconductor                             
+ bit                    1.1-14    2018-05-29 [2] CRAN (R 3.6.1)                           
+ bit64                  0.9-7     2017-05-08 [2] CRAN (R 3.6.1)                           
+ bitops                 1.0-6     2013-08-17 [2] CRAN (R 3.6.1)                           
+ blob                   1.2.0     2019-07-09 [2] CRAN (R 3.6.1)                           
+ BSgenome               1.54.0    2019-10-29 [2] Bioconductor                             
+ bumphunter             1.28.0    2019-10-29 [2] Bioconductor                             
+ callr                  3.3.2     2019-09-22 [2] CRAN (R 3.6.1)                           
+ cellranger             1.1.0     2016-07-27 [2] CRAN (R 3.6.1)                           
+ checkmate              1.9.4     2019-07-04 [2] CRAN (R 3.6.1)                           
+ cli                    2.0.0     2019-12-09 [1] CRAN (R 3.6.1)                           
+ cluster                2.1.0     2019-06-19 [3] CRAN (R 3.6.1)                           
+ codetools              0.2-16    2018-12-24 [3] CRAN (R 3.6.1)                           
+ colorspace             1.4-1     2019-03-18 [2] CRAN (R 3.6.1)                           
+ crayon                 1.3.4     2017-09-16 [2] CRAN (R 3.6.1)                           
+ curl                   4.2       2019-09-24 [2] CRAN (R 3.6.1)                           
+ data.table             1.12.6    2019-10-18 [2] CRAN (R 3.6.1)                           
+ DBI                    1.0.0     2018-05-02 [2] CRAN (R 3.6.1)                           
+ dbplyr                 1.4.2     2019-06-17 [2] CRAN (R 3.6.1)                           
+ DelayedArray         * 0.12.0    2019-10-29 [2] Bioconductor                             
+ derfinder              1.20.0    2019-10-29 [2] Bioconductor                             
+ derfinderHelper        1.20.0    2019-10-29 [2] Bioconductor                             
+ desc                   1.2.0     2018-05-01 [2] CRAN (R 3.6.1)                           
+ devtools             * 2.2.1     2019-09-24 [2] CRAN (R 3.6.1)                           
+ digest                 0.6.23    2019-11-23 [1] CRAN (R 3.6.1)                           
+ doRNG                  1.7.1     2018-06-22 [2] CRAN (R 3.6.1)                           
+ downloader             0.4       2015-07-09 [2] CRAN (R 3.6.1)                           
+ dplyr                  0.8.3     2019-07-04 [2] CRAN (R 3.6.1)                           
+ edgeR                * 3.28.0    2019-10-29 [2] Bioconductor                             
+ ellipsis               0.3.0     2019-09-20 [2] CRAN (R 3.6.1)                           
+ fansi                  0.4.0     2018-10-05 [2] CRAN (R 3.6.1)                           
+ foreach                1.4.7     2019-07-27 [2] CRAN (R 3.6.1)                           
+ foreign                0.8-72    2019-08-02 [3] CRAN (R 3.6.1)                           
+ Formula                1.2-3     2018-05-03 [2] CRAN (R 3.6.1)                           
+ fs                     1.3.1     2019-05-06 [2] CRAN (R 3.6.1)                           
+ genefilter           * 1.68.0    2019-10-29 [2] Bioconductor                             
+ GenomeInfoDb         * 1.22.0    2019-10-29 [2] Bioconductor                             
+ GenomeInfoDbData       1.2.2     2019-10-28 [2] Bioconductor                             
+ GenomicAlignments      1.22.0    2019-10-29 [2] Bioconductor                             
+ GenomicFeatures        1.38.0    2019-10-29 [2] Bioconductor                             
+ GenomicFiles           1.22.0    2019-10-29 [2] Bioconductor                             
+ GenomicRanges        * 1.38.0    2019-10-29 [2] Bioconductor                             
+ GEOquery               2.54.0    2019-10-29 [2] Bioconductor                             
+ ggplot2                3.2.1     2019-08-10 [2] CRAN (R 3.6.1)                           
+ glue                   1.3.1     2019-03-12 [2] CRAN (R 3.6.1)                           
+ googledrive            1.0.0     2019-08-19 [1] CRAN (R 3.6.1)                           
+ gridExtra              2.3       2017-09-09 [2] CRAN (R 3.6.1)                           
+ gtable                 0.3.0     2019-03-25 [2] CRAN (R 3.6.1)                           
+ Hmisc                  4.3-0     2019-11-07 [2] CRAN (R 3.6.1)                           
+ hms                    0.5.2     2019-10-30 [2] CRAN (R 3.6.1)                           
+ htmlTable              1.13.2    2019-09-22 [2] CRAN (R 3.6.1)                           
+ htmltools              0.4.0     2019-10-04 [2] CRAN (R 3.6.1)                           
+ htmlwidgets            1.5.1     2019-10-08 [2] CRAN (R 3.6.1)                           
+ httr                   1.4.1     2019-08-05 [2] CRAN (R 3.6.1)                           
+ IRanges              * 2.20.0    2019-10-29 [2] Bioconductor                             
+ iterators              1.0.12    2019-07-26 [2] CRAN (R 3.6.1)                           
+ jaffelab             * 0.99.30   2019-12-10 [1] Github (LieberInstitute/jaffelab@42637ff)
+ jsonlite               1.6       2018-12-07 [2] CRAN (R 3.6.1)                           
+ knitr                  1.25      2019-09-18 [2] CRAN (R 3.6.1)                           
+ lattice                0.20-38   2018-11-04 [3] CRAN (R 3.6.1)                           
+ latticeExtra           0.6-28    2016-02-09 [2] CRAN (R 3.6.1)                           
+ lazyeval               0.2.2     2019-03-15 [2] CRAN (R 3.6.1)                           
+ lifecycle              0.1.0     2019-08-01 [2] CRAN (R 3.6.1)                           
+ limma                * 3.42.0    2019-10-29 [1] Bioconductor                             
+ locfit                 1.5-9.1   2013-04-20 [2] CRAN (R 3.6.1)                           
+ magrittr               1.5       2014-11-22 [2] CRAN (R 3.6.1)                           
+ Matrix                 1.2-17    2019-03-22 [3] CRAN (R 3.6.1)                           
+ matrixStats          * 0.55.0    2019-09-07 [2] CRAN (R 3.6.1)                           
+ memoise                1.1.0     2017-04-21 [2] CRAN (R 3.6.1)                           
+ mgcv                 * 1.8-30    2019-10-24 [3] CRAN (R 3.6.1)                           
+ munsell                0.5.0     2018-06-12 [2] CRAN (R 3.6.1)                           
+ nlme                 * 3.1-141   2019-08-01 [3] CRAN (R 3.6.1)                           
+ nnet                   7.3-12    2016-02-02 [3] CRAN (R 3.6.1)                           
+ openssl                1.4.1     2019-07-18 [2] CRAN (R 3.6.1)                           
+ pillar                 1.4.2     2019-06-29 [2] CRAN (R 3.6.1)                           
+ pkgbuild               1.0.6     2019-10-09 [2] CRAN (R 3.6.1)                           
+ pkgconfig              2.0.3     2019-09-22 [2] CRAN (R 3.6.1)                           
+ pkgload                1.0.2     2018-10-29 [2] CRAN (R 3.6.1)                           
+ pkgmaker               0.27      2018-05-25 [2] CRAN (R 3.6.1)                           
+ plyr                   1.8.5     2019-12-10 [1] CRAN (R 3.6.1)                           
+ prettyunits            1.0.2     2015-07-13 [2] CRAN (R 3.6.1)                           
+ processx               3.4.1     2019-07-18 [2] CRAN (R 3.6.1)                           
+ progress               1.2.2     2019-05-16 [2] CRAN (R 3.6.1)                           
+ ps                     1.3.0     2018-12-21 [2] CRAN (R 3.6.1)                           
+ purrr                  0.3.3     2019-10-18 [2] CRAN (R 3.6.1)                           
+ qvalue                 2.18.0    2019-10-29 [2] Bioconductor                             
+ R6                     2.4.1     2019-11-12 [1] CRAN (R 3.6.1)                           
+ rafalib              * 1.0.0     2015-08-09 [1] CRAN (R 3.6.1)                           
+ rappdirs               0.3.1     2016-03-28 [2] CRAN (R 3.6.1)                           
+ RColorBrewer           1.1-2     2014-12-07 [2] CRAN (R 3.6.1)                           
+ Rcpp                   1.0.3     2019-11-08 [2] CRAN (R 3.6.1)                           
+ RCurl                  1.95-4.12 2019-03-04 [2] CRAN (R 3.6.1)                           
+ readr                  1.3.1     2018-12-21 [2] CRAN (R 3.6.1)                           
+ readxl               * 1.3.1     2019-03-13 [2] CRAN (R 3.6.1)                           
+ recount              * 1.12.1    2019-11-06 [2] Bioconductor                             
+ registry               0.5-1     2019-03-05 [2] CRAN (R 3.6.1)                           
+ remotes                2.1.0     2019-06-24 [1] CRAN (R 3.6.1)                           
+ rentrez                1.2.2     2019-05-02 [2] CRAN (R 3.6.1)                           
+ reshape2               1.4.3     2017-12-11 [2] CRAN (R 3.6.1)                           
+ rlang                  0.4.2     2019-11-23 [1] CRAN (R 3.6.1)                           
+ rngtools               1.4       2019-07-01 [2] CRAN (R 3.6.1)                           
+ rpart                  4.1-15    2019-04-12 [3] CRAN (R 3.6.1)                           
+ rprojroot              1.3-2     2018-01-03 [2] CRAN (R 3.6.1)                           
+ Rsamtools              2.2.1     2019-11-06 [2] Bioconductor                             
+ RSQLite                2.1.2     2019-07-24 [2] CRAN (R 3.6.1)                           
+ rstudioapi             0.10      2019-03-19 [2] CRAN (R 3.6.1)                           
+ rtracklayer            1.46.0    2019-10-29 [2] Bioconductor                             
+ S4Vectors            * 0.24.0    2019-10-29 [2] Bioconductor                             
+ scales                 1.1.0     2019-11-18 [1] CRAN (R 3.6.1)                           
+ segmented              1.0-0     2019-06-17 [2] CRAN (R 3.6.1)                           
+ sessioninfo            1.1.1     2018-11-05 [2] CRAN (R 3.6.1)                           
+ stringi                1.4.3     2019-03-12 [2] CRAN (R 3.6.1)                           
+ stringr                1.4.0     2019-02-10 [2] CRAN (R 3.6.1)                           
+ SummarizedExperiment * 1.16.0    2019-10-29 [2] Bioconductor                             
+ survival               2.44-1.1  2019-04-01 [3] CRAN (R 3.6.1)                           
+ sva                  * 3.34.0    2019-10-29 [2] Bioconductor                             
+ testthat               2.3.0     2019-11-05 [2] CRAN (R 3.6.1)                           
+ tibble                 2.1.3     2019-06-06 [2] CRAN (R 3.6.1)                           
+ tidyr                  1.0.0     2019-09-11 [2] CRAN (R 3.6.1)                           
+ tidyselect             0.2.5     2018-10-11 [2] CRAN (R 3.6.1)                           
+ usethis              * 1.5.1     2019-07-04 [2] CRAN (R 3.6.1)                           
+ VariantAnnotation      1.32.0    2019-10-29 [2] Bioconductor                             
+ vctrs                  0.2.0     2019-07-05 [2] CRAN (R 3.6.1)                           
+ withr                  2.1.2     2018-03-15 [2] CRAN (R 3.6.1)                           
+ xfun                   0.10      2019-10-01 [2] CRAN (R 3.6.1)                           
+ XML                    3.98-1.20 2019-06-06 [2] CRAN (R 3.6.1)                           
+ xml2                   1.2.2     2019-08-09 [2] CRAN (R 3.6.1)                           
+ xtable                 1.8-4     2019-04-21 [2] CRAN (R 3.6.1)                           
+ XVector                0.26.0    2019-10-29 [2] Bioconductor                             
+ zeallot                0.1.0     2018-01-28 [2] CRAN (R 3.6.1)                           
+ zlibbioc               1.32.0    2019-10-29 [2] Bioconductor                             
+
+[1] /users/bbarry/R/3.6.x
+[2] /jhpce/shared/jhpce/core/conda/miniconda3-4.6.14/envs/svnR-3.6.x/R/3.6.x/lib64/R/site-library
+[3] /jhpce/shared/jhpce/core/conda/miniconda3-4.6.14/envs/svnR-3.6.x/R/3.6.x/lib64/R/library
+> 
+> q()
+> proc.time()
+    user   system  elapsed 
+2958.384  220.443 3192.495 

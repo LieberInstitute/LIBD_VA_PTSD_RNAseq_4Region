@@ -1,0 +1,293 @@
+
+R version 3.6.1 Patched (2019-10-31 r77350) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(SummarizedExperiment)
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(jaffelab)
+Loading required package: rafalib
+> library(recount)
+Setting options('download.file.method.GEOquery'='auto')
+Setting options('GEOquery.inmemory.gpl'=FALSE)
+> library(WGCNA)
+Loading required package: dynamicTreeCut
+Loading required package: fastcluster
+
+Attaching package: ‘fastcluster’
+
+The following object is masked from ‘package:stats’:
+
+    hclust
+
+
+
+Attaching package: ‘WGCNA’
+
+The following object is masked from ‘package:IRanges’:
+
+    cor
+
+The following object is masked from ‘package:S4Vectors’:
+
+    cor
+
+The following object is masked from ‘package:stats’:
+
+    cor
+
+> library(sva)
+Loading required package: mgcv
+Loading required package: nlme
+
+Attaching package: ‘nlme’
+
+The following object is masked from ‘package:IRanges’:
+
+    collapse
+
+This is mgcv 1.8-30. For overview type 'help("mgcv-package")'.
+Loading required package: genefilter
+
+Attaching package: ‘genefilter’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    rowSds, rowVars
+
+> 
+> setwd('/dcl02/lieber/ptsd/RNAseq/VA_PTSD_RNAseq/')
+> 
+> #load network
+> load("rdas/WGCNA/constructed_network_signed_bicor_BasoAmyg_onlyPTSD.rda", verbose = TRUE)
+Loading objects:
+  net
+  fNames
+> #load rse objects
+> load('rdas/rse_gene_PTSD_VA_LIBD_qcAndAnnotated_n1285.Rdata')
+> 
+> ## add MDS (get ethnicity via genotype)
+> load("rdas/PTSD_LIBD_VA_MDSonly_n326.rda")
+> rownames(mds) = ss(rownames(mds),"_")
+> colData(rse_gene) = cbind(colData(rse_gene) , mds[rse_gene$BrNum,])
+> 
+> ###########
+> # filter ##
+> gIndex = rowMeans(getRPKM(rse_gene, "Length")) > 0.2
+> rse_gene <- rse_gene[gIndex , ]
+> 
+> ##########
+> ## model #
+> ##########
+> 
+> load("rdas/PTSD_onlyPTSD_qsvs.Rdata",verbose=TRUE)
+Loading objects:
+  qsvBonf
+  qSVs
+  mod
+  modQsva
+> 
+> ##ensure intercept, group, agedeath, and sex are up first for cleaning
+> colnames(modQsva)
+ [1] "(Intercept)"       "onlyPTSD"          "AgeDeath"         
+ [4] "SexM"              "RegiondACC"        "RegionDLPFC"      
+ [7] "RegionMedialAmyg"  "mitoRate"          "rRNA_rate"        
+[10] "totalAssignedGene" "RIN"               "overallMapRate"   
+[13] "ERCCsumLogErr"     "snpPC1"            "snpPC2"           
+[16] "snpPC3"            "snpPC8"            "snpPC9"           
+[19] "snpPC10"           "PC1"               "PC2"              
+[22] "PC3"               "PC4"               "PC5"              
+[25] "PC6"               "PC7"               "PC8"              
+[28] "PC9"               "PC10"              "PC11"             
+[31] "PC12"              "PC13"              "PC14"             
+[34] "PC15"              "PC16"              "PC17"             
+[37] "PC18"              "PC19"             
+> 
+> #filter for BasoAmyg 
+> #gene
+> keepIndex = which(rse_gene$Region == "BasoAmyg")
+> rse_gene <- rse_gene[, keepIndex]
+> 
+> #Get rid of region columns
+> modQsva <- modQsva[keepIndex,!grepl("Region", colnames(modQsva))]
+> colnames(modQsva)[1] = "Int"
+> 
+> ### Dx association ###
+> 
+> coefAdj = t(apply(net$MEs, 2, function(y)
++   summary(lm(y~ modQsva[ ,1:4]))$coef[2,]))
+> 
+> save(coefAdj, file="rdas/WGCNA/MEvsDx_BasoAmyg_onlyPTSD.rda")
+> 
+> #########################################################
+> #Prelim GO using WGCNA package functionality
+> #library(GO.db)
+> #library(org.Hs.eg.db)
+> 
+> #universe <- as.character(rowData(rse_gene)$EntrezID[!is.na(rowData(rse_gene)$EntrezID)])
+> 
+> #GOenr = GOenrichmentAnalysis(net$colors, universe, organism = "human", nBestP = 10);
+> #Warning in GOenrichmentAnalysis(net$colors, universe, organism = "human",  :
+> #  This function is deprecated and will be removed in the near future. 
+> #We suggest using the replacement function enrichmentAnalysis 
+> #in R package anRichment, available from the following URL:
+> #https://labs.genetics.ucla.edu/horvath/htdocs/CoexpressionNetwork/GeneAnnotation/
+> #tab = GOenr$bestPTerms[[4]]$enrichment
+> #sig <- coefAdj[coefAdj[,4] < 0.1,]
+> #rownames(sig) <- gsub("ME","",rownames(sig))
+> #tab_interest <- tab[tab$module == rownames(sig),] #because those modules are ~significant
+> #unique(tab_interest$termName)
+> 
+> #save(GOenr, file="rdas/BasoAmyg/wgcna_BasoAmyg_GO_onlyPTSD.rda")
+> ###########################################################
+> 
+> #GO using clusterProfiler
+> library(clusterProfiler)
+Registered S3 method overwritten by 'enrichplot':
+  method               from
+  fortify.enrichResult DOSE
+clusterProfiler v3.14.0  For help: https://guangchuangyu.github.io/software/clusterProfiler
+
+If you use clusterProfiler in published research, please cite:
+Guangchuang Yu, Li-Gen Wang, Yanyan Han, Qing-Yu He. clusterProfiler: an R package for comparing biological themes among gene clusters. OMICS: A Journal of Integrative Biology. 2012, 16(5):284-287.
+
+Attaching package: ‘clusterProfiler’
+
+The following object is masked from ‘package:DelayedArray’:
+
+    simplify
+
+> library(org.Hs.eg.db)
+Loading required package: AnnotationDbi
+
+> 				  
+> #make matrix
+> # split genes into modules
+> moduleGeneList_adj = split(rowData(rse_gene)$EntrezID, net$colors)
+> moduleGeneList_adj = lapply(moduleGeneList_adj, function(x) x[!is.na(x)])
+> 
+> #universe of expressed genes
+> universe <- as.character(rowData(rse_gene)$EntrezID[!is.na(rowData(rse_gene)$EntrezID)])
+> 
+> ## run GO 
+> go_modules_basoamyg <- compareCluster(moduleGeneList_adj, fun = "enrichGO",
++                 universe = universe, OrgDb = org.Hs.eg.db,
++                 ont = "ALL", pAdjustMethod = "BH",
++                 pvalueCutoff  = 1, qvalueCutoff  = 1,
++                                 readable= TRUE)
+> 
+> save(go_modules_basoamyg, file="rdas/BasoAmyg/wgcna_BasoAmyg_GO_clusterProfiler_onlyPTSD.rda")
+> 
+> #sig <- coefAdj[coefAdj[,4] < 0.1,]
+> #go_df <- as.data.frame(go_modules_basoamyg)
+> #rownames(sig) <- gsub("ME","",rownames(sig))
+> #go_interest <- go_df[go_df$Cluster %in% rownames(sig),] #because those modules are ~significant
+> #go_interest_padjust <- go_interest[go_interest$p.adjust <0.00001,]
+> #go_interest_padjust[,c("Cluster","Description")]
+> 
+> #go_interest_ordered <- go_interest[order(go_interest$p.adjust),]
+> #go_interest_ordered_topten <- go_interest_ordered[c(1:10),]
+> #go_interest_ordered_split <- split(go_interest_ordered$Description, go_interest_ordered$Cluster)
+> #go_interest_ordered_split_topten <- go_interest_ordered_split$'2'[1:10]
+> 		
+> #plot
+> #library(jaffelab)
+> #library(ggplot2)
+> #library(scales)
+> 
+> #pdf("pdf/testing.pdf")
+> #ggplot(data=go_interest_ordered_topten, aes(x = Description, y=-log10(p.adjust), fill=factor(Cluster))) +
+> #geom_bar(position="dodge",stat="identity", width = 0.5) + 
+> #coord_flip() +
+> #ylab("-log10(Adjusted P Value)") +
+> #ggtitle("GO BasoAmyg WCGNA Significant Modules")
+> #dev.off()
+> 							
+> #go_interest <- go_df[go_df$Cluster == 5,]							
+> #go_interest_ordered <- go_interest[order(go_interest$p.adjust),]
+> #go_interest_ordered_topten <- go_interest_ordered[1:10,]
+> 							
+> 							
+> 		
+> 							
+> 
+> proc.time()
+    user   system  elapsed 
+1723.812   21.585 1747.728 
