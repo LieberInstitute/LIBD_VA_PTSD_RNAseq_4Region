@@ -12,6 +12,8 @@ This work was performed by [Brianna Barry](https://github.com/BriannaBarry), [An
 
 If you use anything in this repository, please cite the following publication:
 
+* Jaffe AE, Tao R, Page SC, et al. Decoding Shared Versus Divergent Transcriptomic Signatures Across Cortico-Amygdala Circuitry in PTSD and Depressive Disorders. Am J Psychiatry. 2022;179(9):673-686. [doi:10.1176/appi.ajp.21020162](https://doi.org/10.1176/appi.ajp.21020162)
+
 ## License
 
 <img src="https://licensebuttons.net/l/by-nc/3.0/88x31.png" alt width="88" height="31" scale="0">
