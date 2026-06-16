@@ -25,5 +25,5 @@ This license allows others to remix, tweak, and build upon our work non-commerci
 
 ## LIBD internal:
 
-JHPCE location: `/dcl02/lieber/ptsd/RNAseq/LIBD_VA_PTSD_RNAseq_4Region`
+JHPCE location: `/dcs05/legacy-dcl01-lieber/liebercentral/ptsdRNAseq4regions_LIBD001`
 
